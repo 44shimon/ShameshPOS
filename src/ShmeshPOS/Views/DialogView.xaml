@@ -1,0 +1,23 @@
+<UserControl x:Class="ShmeshPOS.Views.DialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Background="{StaticResource OverlayBrush}">
+        <Border Style="{StaticResource OverlayCard}" MinWidth="440" MaxWidth="620">
+            <StackPanel>
+                <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" />
+                <TextBlock Text="{Binding Message}" FontSize="20" TextWrapping="Wrap" Margin="0,16,0,28"
+                           Foreground="{StaticResource TextBrush}" LineHeight="30" />
+                <UniformGrid Rows="1" HorizontalAlignment="Stretch">
+                    <Button Content="{Binding CancelText}" Style="{StaticResource PosButton}" Margin="0,0,8,0"
+                            Command="{Binding CancelCommand}"
+                            Visibility="{Binding CancelText, Converter={StaticResource NullToVisibility}}" />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding ConfirmCommand}">
+                        <TextBlock>
+                            <Run Text="{Binding ConfirmText, Mode=OneWay}" /><Run Text="  ⏎" FontSize="16" />
+                        </TextBlock>
+                    </Button>
+                </UniformGrid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

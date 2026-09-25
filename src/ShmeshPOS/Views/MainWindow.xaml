@@ -1,0 +1,16 @@
+<Window x:Class="ShmeshPOS.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Shmesh POS"
+        Width="1366" Height="800" MinWidth="1024" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackgroundBrush}"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display"
+        PreviewKeyDown="OnPreviewKeyDown">
+    <Grid>
+        <ContentControl Content="{Binding CurrentView}" Focusable="False" />
+        <!-- Modal message/confirm dialog above everything else. -->
+        <ContentControl Content="{Binding Dialogs.Current}" Focusable="False" />
+    </Grid>
+</Window>
