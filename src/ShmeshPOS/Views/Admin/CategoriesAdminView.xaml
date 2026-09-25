@@ -1,0 +1,142 @@
+<UserControl x:Class="ShmeshPOS.Views.Admin.CategoriesAdminView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:admin="clr-namespace:ShmeshPOS.Views.Admin">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="470" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== List ===== -->
+        <DockPanel>
+            <admin:AdminListHeader DockPanel.Dock="Top" />
+            <Border Style="{StaticResource Card}" CornerRadius="12">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="16,10,16,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="80" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="CATEGORY" Style="{StaticResource FormLabel}" Margin="18,0,0,0" />
+                        <TextBlock Grid.Column="1" Text="PRODUCTS" Style="{StaticResource FormLabel}" />
+                        <TextBlock Grid.Column="2" Text="ORDER" Style="{StaticResource FormLabel}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Row" Padding="16,14" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+                                            Background="Transparent" Cursor="Hand">
+                                        <Border.InputBindings>
+                                            <MouseBinding MouseAction="LeftClick" CommandParameter="{Binding}"
+                                                          Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=admin:CategoriesAdminView}}" />
+                                        </Border.InputBindings>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="160" />
+                                                <ColumnDefinition Width="80" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="12" Height="12" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                     Fill="{Binding Item.Category.Color, TargetNullValue=#64748B}" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Item.Category.Name}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                                                <Border Style="{StaticResource DisabledPill}" Margin="10,0,0,0"
+                                                        Visibility="{Binding Item.Category.IsActive, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                                                    <TextBlock Text="Disabled" FontSize="12" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" FontSize="15" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}">
+                                                <Run Text="{Binding Item.ActiveProductCount, Mode=OneWay}" /><Run Text=" on sale" />
+                                                <Run Text="{Binding Item.ProductCount, Mode=OneWay, StringFormat=(of {0})}" Foreground="{StaticResource MutedTextBrush}" />
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="3" Text="{Binding Item.Category.SortOrder}" FontSize="15" HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="Row" Property="Background" Value="{StaticResource SelectionBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </DockPanel>
+
+        <!-- ===== Editor ===== -->
+        <Border Grid.Column="2" Style="{StaticResource Card}" CornerRadius="12" Padding="22,18">
+            <DockPanel>
+                <admin:AdminEditorFooter DockPanel.Dock="Bottom" Margin="0,12,0,0" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding Editor}">
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Text="{Binding Heading}" Style="{StaticResource Heading}" TextTrimming="CharacterEllipsis" Margin="0,0,0,16" />
+
+                        <StackPanel Style="{StaticResource FormField}">
+                            <TextBlock Text="NAME" Style="{StaticResource FormLabel}" />
+                            <TextBox Style="{StaticResource FormBox}" MaxLength="60" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Style="{StaticResource FormField}">
+                            <TextBlock Text="TILE COLOR" Style="{StaticResource FormLabel}" />
+                            <ItemsControl ItemsSource="{Binding Colors}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="5" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button x:Name="Swatch" Height="48" Margin="0,0,8,8" Focusable="False" Cursor="Hand"
+                                                Command="{Binding DataContext.SelectColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" ToolTip="{Binding}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Ring" CornerRadius="10" BorderThickness="3" BorderBrush="Transparent" Padding="3">
+                                                        <Border CornerRadius="7" Background="{Binding}" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource EqualsConverter}">
+                                                                    <Binding />
+                                                                    <Binding Path="DataContext.Color" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextBrush}" />
+                                                        </DataTrigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="BUTTON ORDER" Style="{StaticResource FormLabel}" />
+                                <TextBox Style="{StaticResource FormBox}" TextAlignment="Right" Text="{Binding SortOrderText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Style="{StaticResource FormCheck}" Content="Shown on register" VerticalAlignment="Bottom" Margin="0,0,0,10"
+                                      IsChecked="{Binding IsActive}" />
+                        </Grid>
+                        <TextBlock Text="Lower numbers appear first. Hiding a category also hides all of its products from the register."
+                                   Style="{StaticResource FormHint}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

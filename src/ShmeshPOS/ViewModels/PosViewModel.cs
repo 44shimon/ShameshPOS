@@ -11,16 +11,6 @@ using ShmeshPOS.Services;
 
 namespace ShmeshPOS.ViewModels;
 
-public partial class CategoryFilterViewModel(int? id, string name, string? color) : ObservableObject
-{
-    public int? Id { get; } = id;
-    public string Name { get; } = name;
-    public string? Color { get; } = color;
-
-    [ObservableProperty]
-    private bool _isSelected;
-}
-
 public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposable
 {
     private readonly IProductService _products;
@@ -29,6 +19,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     private readonly ISessionService _session;
     private readonly IAuthenticationService _auth;
     private readonly IDialogService _dialogs;
+    private readonly ICustomerService _customers;
     private readonly IApplicationControl _app;
     private readonly ILogger<PosViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
@@ -40,6 +31,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         ISessionService session,
         IAuthenticationService auth,
         IDialogService dialogs,
+        ICustomerService customers,
         IApplicationControl app,
         IOptions<PosOptions> options,
         ILogger<PosViewModel> logger)
@@ -50,6 +42,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         _session = session;
         _auth = auth;
         _dialogs = dialogs;
+        _customers = customers;
         _app = app;
         _logger = logger;
 
@@ -57,12 +50,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         TerminalName = options.Value.TerminalName;
         CashierName = session.CurrentUser?.DisplayName ?? "";
 
-        Categories =
-        [
-            new CategoryFilterViewModel(null, "All", null),
-            .. products.Categories.Select(c => new CategoryFilterViewModel(c.Id, c.Name, c.Color)),
-        ];
-        SelectCategory(Categories[0]);
+        ReloadCatalog();
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _clockTimer.Tick += (_, _) => OnPropertyChanged(nameof(Now));
@@ -76,14 +64,14 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
 
     public CartViewModel Cart { get; } = new();
     public MenuViewModel Menu { get; } = new();
-    public IReadOnlyList<CategoryFilterViewModel> Categories { get; }
-
+    /// <summary>The products chosen in Administration to appear as buttons on the main screen (up to 10).</summary>
     [ObservableProperty]
-    private CategoryFilterViewModel? _selectedCategory;
+    private IReadOnlyList<Product> _mainScreenProducts = [];
 
     [ObservableProperty]
     private string _searchText = "";
 
+    /// <summary>Search results while the cashier is typing in the search box.</summary>
     [ObservableProperty]
     private IReadOnlyList<Product> _visibleProducts = [];
 
@@ -101,6 +89,17 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     /// <summary>The view moves keyboard focus to the search box when this fires.</summary>
     public event EventHandler? FocusSearchRequested;
     public event EventHandler? LogoutRequested;
+    public event EventHandler? AdministrationRequested;
+
+    public bool HasMainScreenProducts => MainScreenProducts.Count > 0;
+
+    /// <summary>Refreshes the main-screen buttons and any search results from the (reloaded) catalog.</summary>
+    public void ReloadCatalog()
+    {
+        MainScreenProducts = _products.MainScreenProducts;
+        OnPropertyChanged(nameof(HasMainScreenProducts));
+        RefreshProducts();
+    }
 
     partial void OnSearchTextChanged(string value)
     {
@@ -109,20 +108,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     }
 
     private void RefreshProducts() =>
-        VisibleProducts = IsSearching ? _products.Search(SearchText) : _products.Search(null, SelectedCategory?.Id);
+        VisibleProducts = IsSearching ? _products.Search(SearchText) : [];
 
     // ---- Catalog and cart ------------------------------------------------------------------
-
-    [RelayCommand]
-    private void SelectCategory(CategoryFilterViewModel? category)
-    {
-        if (category is null) return;
-        foreach (var c in Categories) c.IsSelected = c == category;
-        SelectedCategory = category;
-        SearchText = "";
-        RefreshProducts();
-        FocusSearch();
-    }
 
     [RelayCommand]
     private void AddProduct(Product? product)
@@ -203,6 +191,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         {
             _logger.LogInformation("Sale cancelled with {ItemCount} items, total {Total}", Cart.ItemCount, Cart.Total);
             Cart.Clear();
+            Customer = null;
         }
         FocusSearch();
     }
@@ -245,7 +234,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
             return;
         }
 
-        var payment = new PaymentViewModel(Cart.ToSaleLines(), Cart.Total, methods, _sales, _logger);
+        var payment = new PaymentViewModel(Cart.ToSaleLines(), Cart.Total, methods, Customer, _sales, _logger);
         payment.Cancelled += (_, _) =>
         {
             Payment = null;
@@ -255,6 +244,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         {
             Payment = null;
             Cart.Clear();
+            Customer = null;
             SearchText = "";
             StatusMessage = $"Last sale {sale.ReceiptNumber}: {sale.Total:C}";
             await ShowSaleCompleteAsync(sale);
@@ -268,7 +258,67 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         var message = sale.ChangeGiven is { } change
             ? $"CHANGE DUE:  {change:C}\n\nTotal {sale.Total:C}  ·  {sale.PaymentMethodName}\nReceipt {sale.ReceiptNumber}"
             : $"Total {sale.Total:C}  ·  {sale.PaymentMethodName}\nReceipt {sale.ReceiptNumber}";
+        if (sale.CustomerBalance is { } balance)
+            message += $"\n\nCharged to {sale.CustomerName}.\nNew account balance: {balance:C}";
         return _dialogs.ShowMessageAsync("Sale Complete", message, "Next Customer");
+    }
+
+    // ---- F4 customer ------------------------------------------------------------------------
+
+    /// <summary>Customer attached to the current sale, if any. Required to charge to an account.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCustomer))]
+    private CustomerAccount? _customer;
+
+    [ObservableProperty]
+    private CustomerLookupViewModel? _customerLookup;
+
+    public bool HasCustomer => Customer is not null;
+    public bool CanUseCustomerAccounts => _session.HasPermission(Permission.UseCustomerAccounts);
+
+    [RelayCommand]
+    private async Task OpenCustomerLookupAsync()
+    {
+        if (CustomerLookup is not null || Payment is not null || QuantityEntry is not null) return;
+        if (!CanUseCustomerAccounts)
+        {
+            await _dialogs.ShowMessageAsync("Not Allowed", "You are not allowed to use customer accounts.");
+            return;
+        }
+
+        var lookup = new CustomerLookupViewModel(_customers, _payments, _logger);
+        lookup.Closed += (_, _) => CloseCustomerLookup();
+        lookup.CustomerChosen += (_, account) =>
+        {
+            Customer = account;
+            _logger.LogInformation("Customer {CustomerId} attached to sale", account.Id);
+            CloseCustomerLookup();
+        };
+        lookup.PaymentRecorded += async (_, result) =>
+        {
+            if (Customer?.Id == result.Account.Id) Customer = result.Account;
+            CloseCustomerLookup();
+            StatusMessage = $"Account payment {result.Amount:C} from {result.Account.Name}";
+            await _dialogs.ShowMessageAsync("Payment Received",
+                $"{result.Amount:C} paid by {result.PaymentMethodName}\nfrom {result.Account.Name} (account {result.Account.AccountNumber}).\n\nNew balance: {result.Account.Balance:C}",
+                "Done");
+            FocusSearch();
+        };
+        CustomerLookup = lookup;
+        await lookup.InitializeAsync();
+    }
+
+    private void CloseCustomerLookup()
+    {
+        CustomerLookup = null;
+        FocusSearch();
+    }
+
+    [RelayCommand]
+    private void RemoveCustomer()
+    {
+        Customer = null;
+        FocusSearch();
     }
 
     // ---- F3 menu ----------------------------------------------------------------------------
@@ -276,7 +326,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     [RelayCommand]
     private void OpenMenu()
     {
-        if (Payment is not null || QuantityEntry is not null) return;
+        if (Payment is not null || QuantityEntry is not null || CustomerLookup is not null) return;
 
         var items = new List<MenuItemViewModel>
         {
@@ -287,7 +337,8 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
             new("5", "Open Drawer", () => ComingSoonAsync("Open Drawer")),
             new("6", "Returns", () => ComingSoonAsync("Returns")),
             new("7", "Reports", () => ComingSoonAsync("Reports"), _session.HasPermission(Permission.ViewReports)),
-            new("8", "Settings", () => ComingSoonAsync("Settings and product management"), _session.HasPermission(Permission.ManageSettings)),
+            new("8", "Administration", OpenAdministrationAsync,
+                _session.HasPermission(Permission.ManageProducts) || _session.HasPermission(Permission.ManageUsers)),
             new("9", "Logout", LogoutAsync),
         };
         if (_session.HasPermission(Permission.ExitApplication))
@@ -301,6 +352,12 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         if (!Cart.IsEmpty)
             await ClearSaleAsync();
         FocusSearch();
+    }
+
+    private Task OpenAdministrationAsync()
+    {
+        AdministrationRequested?.Invoke(this, EventArgs.Empty);
+        return Task.CompletedTask;
     }
 
     private async Task ComingSoonAsync(string feature)
@@ -340,6 +397,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     public bool HandleKey(Key key, bool textInputFocused)
     {
         if (QuantityEntry is not null) return QuantityEntry.HandleKey(key, textInputFocused);
+        if (CustomerLookup is not null) return CustomerLookup.HandleKey(key, textInputFocused);
         if (Payment is not null) return Payment.HandleKey(key, textInputFocused);
         if (Menu.IsOpen) return Menu.HandleKey(key, textInputFocused);
 
@@ -354,6 +412,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
                 return true;
             case Key.F3:
                 OpenMenu();
+                return true;
+            case Key.F4:
+                OpenCustomerLookupCommand.Execute(null);
                 return true;
             case Key.F8:
                 OpenPaymentCommand.Execute(null);

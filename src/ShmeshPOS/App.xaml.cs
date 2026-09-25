@@ -13,7 +13,9 @@ using Serilog;
 using ShmeshPOS.Data;
 using ShmeshPOS.Infrastructure;
 using ShmeshPOS.Services;
+using ShmeshPOS.Services.Import;
 using ShmeshPOS.ViewModels;
+using ShmeshPOS.ViewModels.Admin;
 using ShmeshPOS.Views;
 
 namespace ShmeshPOS;
@@ -108,6 +110,12 @@ public partial class App : Application, IApplicationControl
         builder.Services.AddSingleton<IPaymentService, PaymentService>();
         builder.Services.AddSingleton<IReceiptNumberGenerator, ReceiptNumberGenerator>();
         builder.Services.AddSingleton<ISaleService, SaleService>();
+        builder.Services.AddSingleton<ICatalogAdminService, CatalogAdminService>();
+        builder.Services.AddSingleton<IUserAdminService, UserAdminService>();
+        builder.Services.AddSingleton<ISettingsService, SettingsService>();
+        builder.Services.AddSingleton<ICustomerService, CustomerService>();
+        builder.Services.AddSingleton<IImportService, ImportService>();
+        builder.Services.AddSingleton<IFileDialogService, FileDialogService>();
 
         // UI
         builder.Services.AddSingleton<DialogService>();
@@ -115,6 +123,12 @@ public partial class App : Application, IApplicationControl
         builder.Services.AddSingleton<MainWindowViewModel>();
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<PosViewModel>();
+        builder.Services.AddTransient<AdministrationViewModel>();
+        builder.Services.AddTransient<ProductsAdminViewModel>();
+        builder.Services.AddTransient<CategoriesAdminViewModel>();
+        builder.Services.AddTransient<UsersAdminViewModel>();
+        builder.Services.AddTransient<CustomersAdminViewModel>();
+        builder.Services.AddTransient<SettingsAdminViewModel>();
         builder.Services.AddSingleton(sp => new MainWindow(
             sp.GetRequiredService<MainWindowViewModel>(),
             sp.GetRequiredService<IOptions<PosOptions>>().Value));

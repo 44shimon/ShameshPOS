@@ -63,6 +63,153 @@ namespace ShmeshPOS.Data.Migrations
                     b.ToTable("categories", (string)null);
                 });
 
+            modelBuilder.Entity("ShmeshPOS.Models.Customer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("account_number");
+
+                    b.Property<decimal>("Balance")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("balance");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal?>("CreditLimit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("credit_limit");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("phone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customers");
+
+                    b.HasIndex("AccountNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_customers_account_number");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_customers_name");
+
+                    b.ToTable("customers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_customers_credit_limit_non_negative", "credit_limit IS NULL OR credit_limit >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.CustomerTransaction", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("balance_after");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<int?>("PaymentMethodId")
+                        .HasColumnType("integer")
+                        .HasColumnName("payment_method_id");
+
+                    b.Property<long?>("SaleId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sale_id");
+
+                    b.Property<string>("TerminalName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("terminal_name");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customer_transactions");
+
+                    b.HasIndex("PaymentMethodId")
+                        .HasDatabaseName("ix_customer_transactions_payment_method_id");
+
+                    b.HasIndex("SaleId")
+                        .HasDatabaseName("ix_customer_transactions_sale_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_customer_transactions_user_id");
+
+                    b.HasIndex("CustomerId", "CreatedAt")
+                        .HasDatabaseName("ix_customer_transactions_customer_id_created_at");
+
+                    b.ToTable("customer_transactions", (string)null);
+                });
+
             modelBuilder.Entity("ShmeshPOS.Models.Payment", b =>
                 {
                     b.Property<long>("Id")
@@ -201,6 +348,10 @@ namespace ShmeshPOS.Data.Migrations
                         .HasColumnType("numeric(10,2)")
                         .HasColumnName("price");
 
+                    b.Property<bool>("ShowOnMainScreen")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_on_main_screen");
+
                     b.Property<string>("Sku")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -234,6 +385,10 @@ namespace ShmeshPOS.Data.Migrations
 
                     b.HasIndex("Name")
                         .HasDatabaseName("ix_products_name");
+
+                    b.HasIndex("ShowOnMainScreen")
+                        .HasDatabaseName("ix_products_show_on_main_screen")
+                        .HasFilter("show_on_main_screen");
 
                     b.HasIndex("Sku")
                         .IsUnique()
@@ -284,6 +439,10 @@ namespace ShmeshPOS.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("customer_id");
+
                     b.Property<string>("ReceiptNumber")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -325,6 +484,9 @@ namespace ShmeshPOS.Data.Migrations
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_sales_created_at");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_sales_customer_id");
 
                     b.HasIndex("ReceiptNumber")
                         .IsUnique()
@@ -398,6 +560,29 @@ namespace ShmeshPOS.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShmeshPOS.Models.StoreSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key")
+                        .HasName("pk_store_settings");
+
+                    b.ToTable("store_settings", (string)null);
+                });
+
             modelBuilder.Entity("ShmeshPOS.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -449,6 +634,43 @@ namespace ShmeshPOS.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("ShmeshPOS.Models.CustomerTransaction", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_customer_transactions_customers_customer_id");
+
+                    b.HasOne("ShmeshPOS.Models.PaymentMethod", "PaymentMethod")
+                        .WithMany()
+                        .HasForeignKey("PaymentMethodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_customer_transactions_payment_methods_payment_method_id");
+
+                    b.HasOne("ShmeshPOS.Models.Sale", "Sale")
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_customer_transactions_sales_sale_id");
+
+                    b.HasOne("ShmeshPOS.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_customer_transactions_users_user_id");
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("PaymentMethod");
+
+                    b.Navigation("Sale");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ShmeshPOS.Models.Payment", b =>
                 {
                     b.HasOne("ShmeshPOS.Models.PaymentMethod", "PaymentMethod")
@@ -491,7 +713,15 @@ namespace ShmeshPOS.Data.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_sales_users_cashier_id");
 
+                    b.HasOne("ShmeshPOS.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_sales_customers_customer_id");
+
                     b.Navigation("Cashier");
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.SaleItem", b =>

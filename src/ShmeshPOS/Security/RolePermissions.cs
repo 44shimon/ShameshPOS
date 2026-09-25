@@ -16,6 +16,7 @@ public static class RolePermissions
                 Permission.Sell,
                 Permission.TakePayment,
                 Permission.ViewOwnTransactions,
+                Permission.UseCustomerAccounts,
             ],
             [UserRole.Administrator] = [.. Enum.GetValues<Permission>()],
         };

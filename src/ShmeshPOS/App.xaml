@@ -4,6 +4,8 @@
              xmlns:vm="clr-namespace:ShmeshPOS.ViewModels"
              xmlns:views="clr-namespace:ShmeshPOS.Views"
              xmlns:conv="clr-namespace:ShmeshPOS.Converters"
+             xmlns:adminVm="clr-namespace:ShmeshPOS.ViewModels.Admin"
+             xmlns:adminViews="clr-namespace:ShmeshPOS.Views.Admin"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <ResourceDictionary>
@@ -14,6 +16,9 @@
 
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibility" />
+            <conv:JoinNonEmptyConverter x:Key="JoinNonEmpty" />
+            <conv:EqualsConverter x:Key="EqualsConverter" />
+            <conv:UtcToLocalConverter x:Key="UtcToLocal" />
 
             <!-- View-model-first navigation: each view model is rendered by its view. -->
             <DataTemplate DataType="{x:Type vm:StartupViewModel}">
@@ -31,8 +36,34 @@
             <DataTemplate DataType="{x:Type vm:QuantityEntryViewModel}">
                 <views:QuantityView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:CustomerLookupViewModel}">
+                <views:CustomerLookupView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DialogViewModel}">
                 <views:DialogView />
+            </DataTemplate>
+
+            <!-- Administration -->
+            <DataTemplate DataType="{x:Type adminVm:AdministrationViewModel}">
+                <adminViews:AdministrationView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVm:ProductsAdminViewModel}">
+                <adminViews:ProductsAdminView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVm:CategoriesAdminViewModel}">
+                <adminViews:CategoriesAdminView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVm:UsersAdminViewModel}">
+                <adminViews:UsersAdminView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVm:CustomersAdminViewModel}">
+                <adminViews:CustomersAdminView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVm:SettingsAdminViewModel}">
+                <adminViews:SettingsAdminView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type adminVm:ImportViewModel}">
+                <adminViews:ImportView />
             </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>

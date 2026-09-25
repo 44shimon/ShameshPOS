@@ -8,6 +8,8 @@ public enum Permission
     ManageProducts,
     ManageUsers,
     ManageSettings,
+    ManageCustomers,
+    UseCustomerAccounts,
     ViewReports,
     ViewSalesHistory,
     ExitApplication,

@@ -58,6 +58,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         b.HasIndex(p => p.Barcode).IsUnique().HasFilter("barcode IS NOT NULL");
         b.HasIndex(p => p.Name);
         b.HasIndex(p => new { p.CategoryId, p.SortOrder });
+        b.HasIndex(p => p.ShowOnMainScreen).HasFilter("show_on_main_screen");
     }
 }
 
@@ -78,9 +79,15 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
             .HasForeignKey(s => s.CashierId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        b.HasOne(s => s.Customer)
+            .WithMany()
+            .HasForeignKey(s => s.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         b.HasIndex(s => s.ReceiptNumber).IsUnique();
         b.HasIndex(s => s.CreatedAt);
         b.HasIndex(s => s.CashierId);
+        b.HasIndex(s => s.CustomerId);
     }
 }
 
@@ -151,5 +158,52 @@ public class ReceiptSequenceConfiguration : IEntityTypeConfiguration<ReceiptSequ
     {
         b.HasKey(r => r.Year);
         b.Property(r => r.Year).ValueGeneratedNever();
+    }
+}
+
+public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
+{
+    public void Configure(EntityTypeBuilder<Customer> b)
+    {
+        b.ToTable(t => t.HasCheckConstraint("ck_customers_credit_limit_non_negative", "credit_limit IS NULL OR credit_limit >= 0"));
+        b.Property(c => c.AccountNumber).HasMaxLength(20);
+        b.Property(c => c.Name).HasMaxLength(100);
+        b.Property(c => c.Phone).HasMaxLength(30);
+        b.Property(c => c.Email).HasMaxLength(200);
+        b.Property(c => c.Notes).HasMaxLength(500);
+        b.Property(c => c.Balance).HasPrecision(12, 2);
+        b.Property(c => c.CreditLimit).HasPrecision(12, 2);
+        b.HasIndex(c => c.AccountNumber).IsUnique();
+        b.HasIndex(c => c.Name);
+    }
+}
+
+public class CustomerTransactionConfiguration : IEntityTypeConfiguration<CustomerTransaction>
+{
+    public void Configure(EntityTypeBuilder<CustomerTransaction> b)
+    {
+        b.Property(t => t.Type).HasConversion<string>().HasMaxLength(20);
+        b.Property(t => t.Amount).HasPrecision(12, 2);
+        b.Property(t => t.BalanceAfter).HasPrecision(12, 2);
+        b.Property(t => t.Note).HasMaxLength(500);
+        b.Property(t => t.TerminalName).HasMaxLength(50);
+
+        b.HasOne(t => t.Customer).WithMany().HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(t => t.Sale).WithMany().HasForeignKey(t => t.SaleId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(t => t.PaymentMethod).WithMany().HasForeignKey(t => t.PaymentMethodId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Restrict);
+
+        b.HasIndex(t => new { t.CustomerId, t.CreatedAt });
+        b.HasIndex(t => t.SaleId);
+    }
+}
+
+public class StoreSettingConfiguration : IEntityTypeConfiguration<StoreSetting>
+{
+    public void Configure(EntityTypeBuilder<StoreSetting> b)
+    {
+        b.HasKey(s => s.Key);
+        b.Property(s => s.Key).HasMaxLength(100);
+        b.Property(s => s.Value).HasMaxLength(1000);
     }
 }

@@ -10,6 +10,9 @@ public interface IProductService
     IReadOnlyList<Category> Categories { get; }
     IReadOnlyList<Product> Products { get; }
 
+    /// <summary>Products shown as buttons on the register's main screen, in button order.</summary>
+    IReadOnlyList<Product> MainScreenProducts { get; }
+
     /// <summary>Loads active categories and products into memory. Searches never hit the database.</summary>
     Task LoadAsync(CancellationToken cancellationToken = default);
 
@@ -26,6 +29,7 @@ public class ProductService(IDbContextFactory<PosDbContext> dbFactory, ILogger<P
 
     public IReadOnlyList<Category> Categories { get; private set; } = [];
     public IReadOnlyList<Product> Products { get; private set; } = [];
+    public IReadOnlyList<Product> MainScreenProducts { get; private set; } = [];
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -54,6 +58,11 @@ public class ProductService(IDbContextFactory<PosDbContext> dbFactory, ILogger<P
 
         Categories = categories;
         Products = products;
+        MainScreenProducts = products
+            .Where(p => p.ShowOnMainScreen)
+            .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+            .Take(CatalogAdminService.MaxMainScreenItems)
+            .ToList();
         _byLookupKey = byKey;
         logger.LogInformation("Catalog loaded: {CategoryCount} categories, {ProductCount} products", categories.Count, products.Count);
     }

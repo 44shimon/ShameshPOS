@@ -10,8 +10,11 @@ public class PosOptions
     /// <summary>Identifies this register on each sale. Defaults to the Windows machine name.</summary>
     public string TerminalName { get; set; } = Environment.MachineName;
 
-    /// <summary>Kiosk-style borderless full-screen window. An administrator exits via F3 → Exit.</summary>
-    public bool FullScreen { get; set; } = true;
+    /// <summary>
+    /// Kiosk mode: borderless full screen with no title bar, and only an administrator can exit (F3 → Exit).
+    /// Off by default: the POS opens as a normal maximized window with minimize and close buttons.
+    /// </summary>
+    public bool FullScreen { get; set; }
 
     /// <summary>Culture for currency and number formatting.</summary>
     public string Culture { get; set; } = "en-US";

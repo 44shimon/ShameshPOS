@@ -24,8 +24,9 @@ public partial class MainWindow : Window
             // Borderless full screen. Not Topmost and no keyboard hooks: Windows itself is never locked.
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
-            WindowState = WindowState.Maximized;
         }
+        // Normal mode keeps the Windows title bar (minimize / maximize / close) but still opens filling the screen.
+        WindowState = WindowState.Maximized;
     }
 
     /// <summary>Set by the app when an authorised exit is requested, so the kiosk close guard lets it through.</summary>

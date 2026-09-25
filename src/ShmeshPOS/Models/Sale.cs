@@ -10,6 +10,10 @@ public class Sale
     public int CashierId { get; set; }
     public User? Cashier { get; set; }
 
+    /// <summary>Customer the sale was made to, if one was attached. Required when paid by account.</summary>
+    public int? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
+
     /// <summary>Name of the POS terminal that recorded the sale.</summary>
     public required string TerminalName { get; set; }
 

@@ -10,6 +10,21 @@ using ShmeshPOS.Services;
 
 namespace ShmeshPOS.ViewModels;
 
+public partial class LoginUserViewModel(LoginUser user) : ObservableObject
+{
+    public LoginUser User { get; } = user;
+    public string DisplayName => User.DisplayName;
+    public string RoleText => User.Role == UserRole.Administrator ? "Administrator" : "Cashier";
+
+    /// <summary>First letters of the name, for the round badge on the button.</summary>
+    public string Initials => string.Concat(User.DisplayName
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+/// <summary>Login: tap your name, then type your PIN on the keypad (or keyboard).</summary>
 public partial class LoginViewModel(
     IAuthenticationService auth,
     IOptions<PosOptions> options,
@@ -19,6 +34,13 @@ public partial class LoginViewModel(
     private string _pin = "";
 
     [ObservableProperty]
+    private IReadOnlyList<LoginUserViewModel> _users = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedUser), nameof(Prompt))]
+    private LoginUserViewModel? _selectedUser;
+
+    [ObservableProperty]
     private string? _errorMessage;
 
     [ObservableProperty]
@@ -26,6 +48,8 @@ public partial class LoginViewModel(
     private bool _isBusy;
 
     public string StoreName => options.Value.StoreName;
+    public bool HasSelectedUser => SelectedUser is not null;
+    public string Prompt => SelectedUser is { } u ? $"Hi {u.DisplayName}, enter your PIN" : "Tap your name";
 
     /// <summary>One dot per digit entered, with empty placeholders up to the minimum PIN length.</summary>
     public string MaskedPin
@@ -38,6 +62,33 @@ public partial class LoginViewModel(
     }
 
     public event EventHandler<User>? LoggedIn;
+
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            var users = await auth.GetLoginUsersAsync();
+            Users = users.Select(u => new LoginUserViewModel(u)).ToList();
+            // A single user needs no choosing.
+            if (Users.Count == 1) SelectUser(Users[0]);
+            if (Users.Count == 0) ErrorMessage = "No active users. Ask an administrator.";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not load the user list for login");
+            ErrorMessage = "Unable to load users. Check the connection.";
+        }
+    }
+
+    [RelayCommand]
+    private void SelectUser(LoginUserViewModel? user)
+    {
+        if (user is null || IsBusy) return;
+        foreach (var u in Users) u.IsSelected = u == user;
+        SelectedUser = user;
+        SetPin("");
+        ErrorMessage = null;
+    }
 
     [RelayCommand]
     private void Keypad(string key)
@@ -72,6 +123,11 @@ public partial class LoginViewModel(
     [RelayCommand(CanExecute = nameof(CanLogin))]
     private async Task LoginAsync()
     {
+        if (SelectedUser is null)
+        {
+            ErrorMessage = "Tap your name first.";
+            return;
+        }
         if (_pin.Length == 0)
         {
             ErrorMessage = "Enter your PIN.";
@@ -84,7 +140,7 @@ public partial class LoginViewModel(
         SetPin("");
         try
         {
-            var result = await auth.LoginWithPinAsync(pin);
+            var result = await auth.LoginAsync(SelectedUser.User.Id, pin);
             if (result.Success)
                 LoggedIn?.Invoke(this, result.User!);
             else
@@ -105,6 +161,13 @@ public partial class LoginViewModel(
     {
         _pin = value;
         OnPropertyChanged(nameof(MaskedPin));
+    }
+
+    private void MoveSelection(int direction)
+    {
+        if (Users.Count == 0) return;
+        var index = SelectedUser is null ? (direction > 0 ? -1 : Users.Count) : Users.ToList().IndexOf(SelectedUser);
+        SelectUser(Users[Math.Clamp(index + direction, 0, Users.Count - 1)]);
     }
 
     public bool HandleKey(Key key, bool textInputFocused)
@@ -128,6 +191,12 @@ public partial class LoginViewModel(
                 return true;
             case Key.Enter:
                 LoginCommand.Execute(null);
+                return true;
+            case Key.Up or Key.Left:
+                MoveSelection(-1);
+                return true;
+            case Key.Down or Key.Right or Key.Tab:
+                MoveSelection(1);
                 return true;
             default:
                 return false;

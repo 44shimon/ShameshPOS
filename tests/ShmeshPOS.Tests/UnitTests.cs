@@ -179,3 +179,15 @@ public class PaymentViewModelTests
         Assert.Equal([20m, 50m, 100m], PaymentViewModel.BuildQuickCashAmounts(20m));
     }
 }
+
+public class WeakPinTests
+{
+    [Theory]
+    [InlineData("1111", true)]
+    [InlineData("1234", true)]
+    [InlineData("98765", true)]
+    [InlineData("1357", false)]
+    [InlineData("5829", false)]
+    [InlineData("1123", false)]
+    public void Detects_repeated_and_sequential_pins(string pin, bool weak) => Assert.Equal(weak, PinHasher.IsWeakPin(pin));
+}

@@ -3,19 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:ShmeshPOS.Views">
     <UserControl.Resources>
-        <Style x:Key="CategoryButton" TargetType="Button" BasedOn="{StaticResource PosButton}">
-            <Setter Property="Margin" Value="0,0,10,0" />
-            <Setter Property="MinWidth" Value="120" />
-            <Setter Property="FontSize" Value="19" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource ChromeBrush}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource ChromeBrush}" />
-                    <Setter Property="Foreground" Value="White" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
+        <!-- Small tiles for search results. -->
         <Style x:Key="ProductTile" TargetType="Button" BasedOn="{StaticResource PosButton}">
             <Setter Property="Width" Value="172" />
             <Setter Property="Height" Value="112" />
@@ -24,6 +12,30 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
+
+        <!-- Big main-screen buttons: they stretch to fill a 2 x 5 grid. -->
+        <Style x:Key="MainTile" TargetType="Button" BasedOn="{StaticResource PosButton}">
+            <Setter Property="Margin" Value="7" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+
+        <DataTemplate x:Key="MainTileContent">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" CornerRadius="9,9,0,0" Background="{Binding Category.Color, TargetNullValue=#64748B, FallbackValue=#64748B}" />
+                <Viewbox Grid.Row="1" StretchDirection="DownOnly" Margin="12,6">
+                    <TextBlock Text="{Binding Name}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="260" />
+                </Viewbox>
+                <TextBlock Grid.Row="2" Text="{Binding Price, StringFormat={}{0:C}}" FontSize="24" FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,16" />
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -67,88 +79,99 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="460" />
+                <!-- Current sale 65% of the width, item buttons 35%. -->
+                <ColumnDefinition Width="65*" />
+                <ColumnDefinition Width="35*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ===== Left: categories + product tiles ===== -->
-            <Grid Grid.Column="0" Margin="20,16,8,0">
+            <!-- ===== Right: main-screen items, or search results while typing ===== -->
+            <Grid Grid.Column="1" Margin="8,16,20,0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                              PanningMode="HorizontalOnly" Margin="0,0,0,14">
-                    <ItemsControl ItemsSource="{Binding Categories}">
+                <!-- Main screen: the (up to) ten items chosen in Administration, as big buttons -->
+                <Grid Visibility="{Binding IsSearching, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                    <ItemsControl ItemsSource="{Binding MainScreenProducts}" Margin="-7">
                         <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" Rows="5" /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Style="{StaticResource CategoryButton}" Content="{Binding Name}"
-                                        Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=views:PosView}}"
+                                <Button Style="{StaticResource MainTile}" ContentTemplate="{StaticResource MainTileContent}" Content="{Binding}"
+                                        Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=views:PosView}}"
                                         CommandParameter="{Binding}" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </ScrollViewer>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520"
+                                Visibility="{Binding HasMainScreenProducts, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                        <TextBlock Text="No items on the main screen yet" Style="{StaticResource Heading}" HorizontalAlignment="Center" />
+                        <TextBlock Style="{StaticResource Muted}" FontSize="17" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0"
+                                   Text="An administrator can choose up to 10 in F3 &#x2192; Administration &#x2192; Products by ticking &#x201C;Show on main screen&#x201D;. Meanwhile, search or scan to add items." />
+                    </StackPanel>
+                </Grid>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-                    <ItemsControl ItemsSource="{Binding VisibleProducts}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Style="{StaticResource ProductTile}"
-                                        Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=views:PosView}}"
-                                        CommandParameter="{Binding}">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="6" />
-                                            <RowDefinition Height="*" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <Border Grid.Row="0" CornerRadius="9,9,0,0"
-                                                Background="{Binding Category.Color, TargetNullValue=#64748B, FallbackValue=#64748B}" />
-                                        <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"
-                                                   TextAlignment="Center" VerticalAlignment="Center" Margin="10,4" />
-                                        <TextBlock Grid.Row="2" Text="{Binding Price, StringFormat={}{0:C}}" FontSize="18" FontWeight="Bold"
-                                                   Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,10" />
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <TextBlock Grid.Row="1" Text="No products found." FontSize="20"
-                           HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding VisibleProducts.Count}" Value="0">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <!-- Search results -->
+                <DockPanel Visibility="{Binding IsSearching, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" FontSize="16" Margin="2,0,0,10"
+                               Text="Search results   &#x00B7;   Enter adds the first one   &#x00B7;   Esc goes back to the main screen" />
+                    <Grid>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
+                            <ItemsControl ItemsSource="{Binding VisibleProducts}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource ProductTile}"
+                                                Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=views:PosView}}"
+                                                CommandParameter="{Binding}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="6" />
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <Border Grid.Row="0" CornerRadius="9,9,0,0"
+                                                        Background="{Binding Category.Color, TargetNullValue=#64748B, FallbackValue=#64748B}" />
+                                                <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                           TextAlignment="Center" VerticalAlignment="Center" Margin="10,4" />
+                                                <TextBlock Grid.Row="2" Text="{Binding Price, StringFormat={}{0:C}}" FontSize="18" FontWeight="Bold"
+                                                           Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="No products found." FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding VisibleProducts.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </DockPanel>
 
                 <!-- Status line + shortcut legend -->
-                <DockPanel Grid.Row="2" Height="44">
+                <DockPanel Grid.Row="1" Height="44">
                     <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" VerticalAlignment="Center"
-                               Text="F2 Search   ·   F3 Menu   ·   F8 Pay   ·   Del Remove   ·   +/− Qty" />
+                               Text="F2 Search   ·   F3 Menu   ·   F4 Customer   ·   F8 Pay   ·   Del Remove   ·   +/− Qty" />
                     <TextBlock Text="{Binding StatusMessage}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
                                Foreground="{StaticResource PrimaryDarkBrush}" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
             </Grid>
 
-            <!-- ===== Right: current sale ===== -->
-            <Border Grid.Column="1" Style="{StaticResource Card}" Margin="8,16,20,20" CornerRadius="16">
+            <!-- ===== Left: current sale ===== -->
+            <Border Grid.Column="0" Style="{StaticResource Card}" Margin="20,16,8,20" CornerRadius="16">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -158,12 +181,42 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0" Margin="20,16,20,10">
-                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" VerticalAlignment="Bottom">
-                            <Run Text="{Binding Cart.ItemCount, Mode=OneWay}" /><Run Text=" items" />
-                        </TextBlock>
-                        <TextBlock Text="CURRENT SALE" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
-                    </DockPanel>
+                    <StackPanel Grid.Row="0" Margin="20,16,20,10">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" VerticalAlignment="Bottom">
+                                <Run Text="{Binding Cart.ItemCount, Mode=OneWay}" /><Run Text=" items" />
+                            </TextBlock>
+                            <TextBlock Text="CURRENT SALE" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                        </DockPanel>
+
+                        <!-- Customer: add button, or the attached customer's account summary -->
+                        <Button Style="{StaticResource PosButton}" MinHeight="44" FontSize="16" Margin="0,10,0,0"
+                                HorizontalContentAlignment="Left" Command="{Binding OpenCustomerLookupCommand}"
+                                Visibility="{Binding HasCustomer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Style="{StaticResource KeyHint}" Background="{StaticResource AppBackgroundBrush}">
+                                    <TextBlock Text="F4" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                                </Border>
+                                <TextBlock Text="+  Add customer" Foreground="{StaticResource PrimaryBrush}" />
+                            </DockPanel>
+                        </Button>
+                        <Border Margin="0,10,0,0" Padding="14,8,6,8" CornerRadius="10" Background="{StaticResource SelectionBrush}"
+                                Visibility="{Binding HasCustomer, Converter={StaticResource BoolToVisibility}}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource PosButton}" Content="✕" Width="40" Height="40" MinHeight="40"
+                                        Padding="0" FontSize="16" BorderThickness="0" Background="Transparent" ToolTip="Remove customer"
+                                        Command="{Binding RemoveCustomerCommand}" VerticalAlignment="Center" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontSize="17" FontWeight="Bold" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding Customer.Name, Mode=OneWay}" /><Run Text="  #" FontWeight="Normal" Foreground="{StaticResource MutedTextBrush}" /><Run Text="{Binding Customer.AccountNumber, Mode=OneWay}" FontWeight="Normal" Foreground="{StaticResource MutedTextBrush}" />
+                                    </TextBlock>
+                                    <TextBlock FontSize="14" Foreground="{StaticResource MutedTextBrush}">
+                                        <Run Text="Owes" /><Run Text="{Binding Customer.Balance, Mode=OneWay, StringFormat={} {0:C}}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" /><Run Text="   ·   Available" /><Run Text="{Binding Customer.AvailableCredit, Mode=OneWay, StringFormat={} {0:C}}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" /><Run Text="{Binding Customer.CreditLimit, Mode=OneWay, StringFormat={} of {0:C}}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
 
                     <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1">
                         <Grid>
@@ -263,5 +316,6 @@
                         Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
         <ContentControl Grid.RowSpan="2" Content="{Binding Payment}" Focusable="False" />
         <ContentControl Grid.RowSpan="2" Content="{Binding QuantityEntry}" Focusable="False" />
+        <ContentControl Grid.RowSpan="2" Content="{Binding CustomerLookup}" Focusable="False" />
     </Grid>
 </UserControl>

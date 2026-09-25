@@ -6,6 +6,7 @@ using ShmeshPOS.Data;
 using ShmeshPOS.Infrastructure;
 using ShmeshPOS.Models;
 using ShmeshPOS.Services;
+using ShmeshPOS.ViewModels.Admin;
 
 namespace ShmeshPOS.ViewModels;
 
@@ -57,6 +58,7 @@ public partial class MainWindowViewModel(
         var login = services.GetRequiredService<LoginViewModel>();
         login.LoggedIn += async (_, user) => await ShowPosAsync(login, user);
         CurrentView = login;
+        _ = login.InitializeAsync();
     }
 
     private async Task ShowPosAsync(LoginViewModel login, User user)
@@ -81,7 +83,31 @@ public partial class MainWindowViewModel(
 
         var pos = services.GetRequiredService<PosViewModel>();
         pos.LogoutRequested += (_, _) => ShowLogin();
+        pos.AdministrationRequested += async (_, _) => await ShowAdministrationAsync(pos);
         CurrentView = pos;
+    }
+
+    /// <summary>Opens the back office over the register. The POS view model (and its cart) is kept and restored on return.</summary>
+    private async Task ShowAdministrationAsync(PosViewModel pos)
+    {
+        var admin = services.GetRequiredService<AdministrationViewModel>();
+        admin.Closed += async (_, _) =>
+        {
+            try
+            {
+                // Pick up product, price and category changes straight away.
+                await products.LoadAsync();
+                pos.ReloadCatalog();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to reload catalog after administration");
+                await Dialogs.ShowMessageAsync("Products Not Refreshed", "Changes were saved, but the register could not reload products.\nLog out and back in to see them.");
+            }
+            CurrentView = pos;
+        };
+        CurrentView = admin;
+        await admin.InitializeAsync();
     }
 
     public bool HandleKey(Key key, bool textInputFocused) =>

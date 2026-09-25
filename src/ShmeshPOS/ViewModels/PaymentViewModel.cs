@@ -29,6 +29,7 @@ public partial class PaymentViewModel : ObservableObject, IKeyboardHandler
         IReadOnlyList<SaleLineInput> lines,
         decimal total,
         IReadOnlyList<PaymentMethod> methods,
+        CustomerAccount? customer,
         ISaleService saleService,
         ILogger logger)
     {
@@ -36,17 +37,28 @@ public partial class PaymentViewModel : ObservableObject, IKeyboardHandler
         _saleService = saleService;
         _logger = logger;
         Total = total;
-        Methods = methods.Select(m => new PaymentMethodOptionViewModel(m)).ToList();
+        Customer = customer;
+        // Charging to an account is only offered once a customer is attached to the sale.
+        Methods = methods
+            .Where(m => m.Kind != PaymentKind.Account || customer is not null)
+            .Select(m => new PaymentMethodOptionViewModel(m)).ToList();
         QuickCashAmounts = BuildQuickCashAmounts(total);
         SelectMethod(Methods.FirstOrDefault(m => m.Method.Kind == PaymentKind.Cash) ?? Methods.FirstOrDefault());
     }
 
     public decimal Total { get; }
+    public CustomerAccount? Customer { get; }
+    public bool HasCustomer => Customer is not null;
+
+    /// <summary>Why the account can't take this charge, or null when it can.</summary>
+    public string? AccountProblem => IsAccount && Customer is { } c && Total > c.AvailableCredit
+        ? $"Over the limit: {c.Name} has only {c.AvailableCredit:C} available (limit {c.CreditLimit:C})."
+        : null;
     public IReadOnlyList<PaymentMethodOptionViewModel> Methods { get; }
     public IReadOnlyList<decimal> QuickCashAmounts { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsCash))]
+    [NotifyPropertyChangedFor(nameof(IsCash), nameof(IsAccount), nameof(IsCardOrOther), nameof(AccountProblem))]
     [NotifyPropertyChangedFor(nameof(CanComplete))]
     private PaymentMethodOptionViewModel? _selectedMethod;
 
@@ -65,6 +77,8 @@ public partial class PaymentViewModel : ObservableObject, IKeyboardHandler
     private string? _errorMessage;
 
     public bool IsCash => SelectedMethod?.Method.Kind == PaymentKind.Cash;
+    public bool IsAccount => SelectedMethod?.Method.Kind == PaymentKind.Account;
+    public bool IsCardOrOther => SelectedMethod is not null && !IsCash && !IsAccount;
 
     public decimal? CashReceived =>
         decimal.TryParse(CashReceivedText, NumberStyles.Number, CultureInfo.CurrentCulture, out var value) && value >= 0
@@ -76,7 +90,9 @@ public partial class PaymentViewModel : ObservableObject, IKeyboardHandler
     /// <summary>How much more cash is needed; null once the amount is covered or nothing is entered.</summary>
     public decimal? AmountShort => CashReceived is { } received && received < Total ? Total - received : null;
 
-    public bool CanComplete => !IsBusy && SelectedMethod is not null && (!IsCash || Change is not null);
+    public bool CanComplete => !IsBusy && SelectedMethod is not null
+        && (!IsCash || Change is not null)
+        && (!IsAccount || (Customer is not null && AccountProblem is null));
 
     /// <summary>Raised after the sale has been committed to the database.</summary>
     public event EventHandler<CompletedSale>? Completed;
@@ -124,7 +140,7 @@ public partial class PaymentViewModel : ObservableObject, IKeyboardHandler
         ErrorMessage = null;
         try
         {
-            var request = new CompleteSaleRequest(_lines, SelectedMethod.Method.Id, IsCash ? CashReceived : null);
+            var request = new CompleteSaleRequest(_lines, SelectedMethod.Method.Id, IsCash ? CashReceived : null, Customer?.Id);
             var sale = await _saleService.CompleteSaleAsync(request);
             Completed?.Invoke(this, sale);
         }

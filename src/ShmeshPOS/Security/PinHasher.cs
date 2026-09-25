@@ -20,6 +20,21 @@ public static class PinHasher
     public static bool IsValidPinFormat(string? pin) =>
         pin is { Length: >= MinPinLength and <= MaxPinLength } && pin.All(char.IsAsciiDigit);
 
+    /// <summary>Rejects the PINs people guess first: one repeated digit (1111) or a straight run (1234, 9876).</summary>
+    public static bool IsWeakPin(string pin)
+    {
+        if (pin.Length < 2) return true;
+        if (pin.All(c => c == pin[0])) return true;
+
+        var step = pin[1] - pin[0];
+        if (step is not (1 or -1)) return false;
+        for (var i = 2; i < pin.Length; i++)
+        {
+            if (pin[i] - pin[i - 1] != step) return false;
+        }
+        return true;
+    }
+
     public static string Hash(string pin, int iterations = DefaultIterations)
     {
         ArgumentException.ThrowIfNullOrEmpty(pin);

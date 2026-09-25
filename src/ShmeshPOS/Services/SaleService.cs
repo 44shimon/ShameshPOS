@@ -10,9 +10,12 @@ namespace ShmeshPOS.Services;
 
 public sealed record SaleLineInput(int ProductId, string ProductName, decimal UnitPrice, decimal TaxRate, int Quantity);
 
-public sealed record CompleteSaleRequest(IReadOnlyList<SaleLineInput> Lines, int PaymentMethodId, decimal? CashReceived);
+public sealed record CompleteSaleRequest(IReadOnlyList<SaleLineInput> Lines, int PaymentMethodId, decimal? CashReceived, int? CustomerId = null);
 
-public sealed record CompletedSale(long SaleId, string ReceiptNumber, decimal Total, string PaymentMethodName, decimal? ChangeGiven);
+/// <param name="CustomerBalance">The customer's new balance when the sale was charged to their account.</param>
+public sealed record CompletedSale(
+    long SaleId, string ReceiptNumber, decimal Total, string PaymentMethodName, decimal? ChangeGiven,
+    string? CustomerName = null, decimal? CustomerBalance = null);
 
 public interface ISaleService
 {
@@ -53,6 +56,31 @@ public class SaleService(
 
             await EnsureProductsAvailableAsync(db, request.Lines, cancellationToken);
 
+            // Charging an account locks the customer row until commit, so the limit check can't race another register.
+            Customer? customer = null;
+            if (method.Kind == PaymentKind.Account)
+            {
+                if (!session.HasPermission(Permission.UseCustomerAccounts))
+                    throw new PosException("You are not allowed to charge customer accounts.");
+                var customerId = request.CustomerId ?? throw new PosException("Choose a customer before charging to an account.");
+                customer = await CustomerLedger.LockAsync(db, customerId, cancellationToken);
+                if (!customer.IsActive)
+                    throw new PosException($"{customer.Name}'s account is closed.");
+
+                var limit = customer.CreditLimit ?? await SettingsService.ReadDefaultCreditLimitAsync(db, cancellationToken);
+                if (customer.Balance + totals.Total > limit)
+                {
+                    var available = Math.Max(0m, limit - customer.Balance);
+                    throw new PosException(
+                        $"{customer.Name} can't charge {totals.Total:C}.\nThe account limit is {limit:C} and only {available:C} is available.");
+                }
+            }
+            else if (request.CustomerId is { } attachedId)
+            {
+                customer = await db.Customers.FirstOrDefaultAsync(c => c.Id == attachedId, cancellationToken)
+                    ?? throw new PosException("That customer account no longer exists.");
+            }
+
             decimal? cashReceived = null, change = null;
             if (method.Kind == PaymentKind.Cash)
             {
@@ -68,6 +96,7 @@ public class SaleService(
             {
                 ReceiptNumber = receiptNumber,
                 CashierId = cashier.Id,
+                CustomerId = customer?.Id,
                 TerminalName = options.Value.TerminalName,
                 Subtotal = totals.Subtotal,
                 Tax = totals.Tax,
@@ -102,6 +131,14 @@ public class SaleService(
             };
 
             db.Sales.Add(sale);
+
+            if (method.Kind == PaymentKind.Account)
+            {
+                var entry = CustomerLedger.Post(customer!, CustomerTransactionType.Charge, totals.Total, cashier.Id, options.Value.TerminalName, now);
+                entry.Sale = sale;
+                db.CustomerTransactions.Add(entry);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -109,7 +146,12 @@ public class SaleService(
                 "Sale {ReceiptNumber} completed: {ItemCount} lines, total {Total}, paid by {PaymentMethod}, cashier {CashierId}, terminal {Terminal}",
                 receiptNumber, sale.Items.Count, sale.Total, method.Code, cashier.Id, sale.TerminalName);
 
-            return new CompletedSale(sale.Id, receiptNumber, sale.Total, method.Name, change);
+            if (customer is not null)
+                logger.LogInformation("Sale {ReceiptNumber} customer {CustomerId}; charged to account: {Charged}; balance {Balance}",
+                    receiptNumber, customer.Id, method.Kind == PaymentKind.Account, customer.Balance);
+
+            return new CompletedSale(sale.Id, receiptNumber, sale.Total, method.Name, change,
+                customer?.Name, method.Kind == PaymentKind.Account ? customer!.Balance : null);
         }
         catch (Exception ex) when (ex is not PosException and not OperationCanceledException)
         {

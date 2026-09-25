@@ -89,7 +89,38 @@
                     <!-- Card / other -->
                     <TextBlock Margin="0,24,0,8" FontSize="18" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
                                Text="Process the payment on the card terminal, then press COMPLETE."
-                               Visibility="{Binding IsCash, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
+                               Visibility="{Binding IsCardOrOther, Converter={StaticResource BoolToVisibility}}" />
+
+                    <!-- Charge to account -->
+                    <Border Margin="0,18,0,0" Padding="18,14" CornerRadius="12" Background="{StaticResource SelectionBrush}"
+                            Visibility="{Binding IsAccount, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextBrush}">
+                                <Run Text="Charge to" /><Run Text="{Binding Customer.Name, Mode=OneWay, StringFormat={} {0}}" /><Run Text="{Binding Customer.AccountNumber, Mode=OneWay, StringFormat={}  #{0}}" FontWeight="Normal" Foreground="{StaticResource MutedTextBrush}" />
+                            </TextBlock>
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="OWES NOW" Style="{StaticResource FormLabel}" />
+                                    <TextBlock Text="{Binding Customer.Balance, StringFormat={}{0:C}}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="AVAILABLE" Style="{StaticResource FormLabel}" />
+                                    <TextBlock Text="{Binding Customer.AvailableCredit, StringFormat={}{0:C}}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="LIMIT" Style="{StaticResource FormLabel}" />
+                                    <TextBlock Text="{Binding Customer.CreditLimit, StringFormat={}{0:C}}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding AccountProblem}" Style="{StaticResource ErrorText}" TextAlignment="Left" Margin="0,10,0,0"
+                               Visibility="{Binding AccountProblem, Converter={StaticResource NullToVisibility}}" />
 
                     <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" Margin="0,12,0,0"
                                Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibility}}" />

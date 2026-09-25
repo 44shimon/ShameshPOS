@@ -1,0 +1,118 @@
+<UserControl x:Class="ShmeshPOS.Views.Admin.AdministrationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:admin="clr-namespace:ShmeshPOS.ViewModels.Admin">
+    <UserControl.Resources>
+        <Style x:Key="TabButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="#94A3B8" />
+            <Setter Property="MinWidth" Value="118" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="FontSize" Value="17" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="76" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Background="{StaticResource ChromeBrush}">
+            <DockPanel Margin="20,0">
+                <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,28,0">
+                    <TextBlock Text="SHMESH POS" FontSize="13" FontWeight="Black" Foreground="#94A3B8" />
+                    <TextBlock Text="Administration" FontSize="22" FontWeight="Bold" Foreground="White" />
+                </StackPanel>
+
+                <Button DockPanel.Dock="Right" Style="{StaticResource ChromeButton}" Command="{Binding BackCommand}" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Back to Register" />
+                        <Border Style="{StaticResource KeyHint}"><TextBlock Text="Esc" FontSize="13" /></Border>
+                    </StackPanel>
+                </Button>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding UserName}" Foreground="#94A3B8" FontSize="15"
+                           VerticalAlignment="Center" Margin="0,0,18,0" />
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Products" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static admin:AdminSection.Products}"
+                            Visibility="{Binding CanManageProducts, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsProducts}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource ChromeAltBrush}" />
+                                        <Setter Property="BorderBrush" Value="#334155" />
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Categories" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static admin:AdminSection.Categories}"
+                            Visibility="{Binding CanManageProducts, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCategories}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource ChromeAltBrush}" />
+                                        <Setter Property="BorderBrush" Value="#334155" />
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Customers" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static admin:AdminSection.Customers}"
+                            Visibility="{Binding CanManageCustomers, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCustomers}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource ChromeAltBrush}" />
+                                        <Setter Property="BorderBrush" Value="#334155" />
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Users" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static admin:AdminSection.Users}"
+                            Visibility="{Binding CanManageUsers, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsUsers}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource ChromeAltBrush}" />
+                                        <Setter Property="BorderBrush" Value="#334155" />
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Settings" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static admin:AdminSection.Settings}"
+                            Visibility="{Binding CanManageSettings, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSettings}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource ChromeAltBrush}" />
+                                        <Setter Property="BorderBrush" Value="#334155" />
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ContentControl Grid.Row="1" Content="{Binding CurrentSection}" Focusable="False" Margin="20,16,20,20" />
+
+        <!-- Import overlay of the current tab -->
+        <ContentControl Grid.RowSpan="2" Content="{Binding CurrentSection.Import}" Focusable="False" />
+    </Grid>
+</UserControl>

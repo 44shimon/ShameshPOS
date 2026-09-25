@@ -36,23 +36,46 @@ public class DatabaseInitializer(
         }
 
         await SeedPaymentMethodsAsync(db, cancellationToken);
+        await SeedSettingsAsync(db, cancellationToken);
         await SeedAdministratorAsync(db, cancellationToken);
         if (seedOptions.Value.SampleData)
             await SeedSampleCatalogAsync(db, cancellationToken);
     }
 
+    /// <summary>Adds any built-in payment method missing by code, so upgraded databases get new ones too.</summary>
     private async Task SeedPaymentMethodsAsync(PosDbContext db, CancellationToken ct)
     {
-        if (await db.PaymentMethods.AnyAsync(ct))
+        PaymentMethod[] defaults =
+        [
+            new() { Code = "CASH", Name = "Cash", Kind = PaymentKind.Cash, SortOrder = 1 },
+            new() { Code = "CREDIT", Name = "Credit Card", Kind = PaymentKind.Card, SortOrder = 2 },
+            new() { Code = "DEBIT", Name = "Debit Card", Kind = PaymentKind.Card, SortOrder = 3 },
+            new() { Code = "OTHER", Name = "Other", Kind = PaymentKind.Other, SortOrder = 4 },
+            new() { Code = "ACCOUNT", Name = "Charge to Account", Kind = PaymentKind.Account, SortOrder = 5 },
+        ];
+
+        var existing = await db.PaymentMethods.Select(m => m.Code).ToListAsync(ct);
+        var missing = defaults.Where(d => !existing.Contains(d.Code)).ToList();
+        if (missing.Count == 0)
             return;
 
-        db.PaymentMethods.AddRange(
-            new PaymentMethod { Code = "CASH", Name = "Cash", Kind = PaymentKind.Cash, SortOrder = 1 },
-            new PaymentMethod { Code = "CREDIT", Name = "Credit Card", Kind = PaymentKind.Card, SortOrder = 2 },
-            new PaymentMethod { Code = "DEBIT", Name = "Debit Card", Kind = PaymentKind.Card, SortOrder = 3 },
-            new PaymentMethod { Code = "OTHER", Name = "Other", Kind = PaymentKind.Other, SortOrder = 4 });
+        db.PaymentMethods.AddRange(missing);
         await db.SaveChangesAsync(ct);
-        logger.LogInformation("Seeded default payment methods");
+        logger.LogInformation("Added payment methods: {Codes}", missing.Select(m => m.Code));
+    }
+
+    private async Task SeedSettingsAsync(PosDbContext db, CancellationToken ct)
+    {
+        if (await db.StoreSettings.AnyAsync(s => s.Key == SettingsService.DefaultCreditLimitKey, ct))
+            return;
+
+        db.StoreSettings.Add(new StoreSetting
+        {
+            Key = SettingsService.DefaultCreditLimitKey,
+            Value = SettingsService.FallbackDefaultCreditLimit.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+            UpdatedAt = clock.GetUtcNow().UtcDateTime,
+        });
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task SeedAdministratorAsync(PosDbContext db, CancellationToken ct)
@@ -123,6 +146,11 @@ public class DatabaseInitializer(
             Cat("Other", 5, "#059669",
                 ("Ice Cream", 2.50m), ("Fruit Cup", 2.00m), ("Pickle", 1.00m)));
 
+        await db.SaveChangesAsync(ct);
+
+        // Start the register's main screen with the first ten sample items.
+        var firstTen = await db.Products.OrderBy(p => p.Category!.SortOrder).ThenBy(p => p.SortOrder).Take(CatalogAdminService.MaxMainScreenItems).ToListAsync(ct);
+        foreach (var p in firstTen) p.ShowOnMainScreen = true;
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Seeded sample canteen catalog");
     }

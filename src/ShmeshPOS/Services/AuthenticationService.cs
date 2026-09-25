@@ -14,9 +14,20 @@ public sealed record LoginResult(bool Success, User? User, string? ErrorMessage)
     public static LoginResult Fail(string message) => new(false, null, message);
 }
 
+/// <summary>A name button on the login screen. Carries nothing secret.</summary>
+public sealed record LoginUser(int Id, string DisplayName, UserRole Role);
+
 public interface IAuthenticationService
 {
+    /// <summary>Active users, for the "who's working?" buttons on the login screen.</summary>
+    Task<IReadOnlyList<LoginUser>> GetLoginUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Checks the PIN of the chosen user only.</summary>
+    Task<LoginResult> LoginAsync(int userId, string pin, CancellationToken cancellationToken = default);
+
+    /// <summary>PIN-only login: finds the active user whose PIN matches.</summary>
     Task<LoginResult> LoginWithPinAsync(string pin, CancellationToken cancellationToken = default);
+
     void Logout();
 }
 
@@ -31,15 +42,39 @@ public class AuthenticationService(
     private int _failedAttempts;
     private DateTimeOffset? _lockedUntil;
 
+    public async Task<IReadOnlyList<LoginUser>> GetLoginUsersAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Users.AsNoTracking()
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.DisplayName)
+            .Select(u => new LoginUser(u.Id, u.DisplayName, u.Role))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<LoginResult> LoginAsync(int userId, string pin, CancellationToken cancellationToken = default)
+    {
+        if (LockoutMessage() is { } locked)
+            return LoginResult.Fail(locked);
+        if (!PinHasher.IsValidPinFormat(pin))
+            return RegisterFailure($"PIN format invalid for user {userId}");
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
+        if (user is null)
+            return RegisterFailure($"user {userId} not found or inactive");
+
+        // PBKDF2 is deliberately slow, so verify off the UI thread.
+        if (!await Task.Run(() => PinHasher.Verify(pin, user.PinHash), cancellationToken))
+            return RegisterFailure($"wrong PIN for user {userId}");
+
+        return Succeed(user);
+    }
+
     public async Task<LoginResult> LoginWithPinAsync(string pin, CancellationToken cancellationToken = default)
     {
-        var remainingLockout = GetRemainingLockout();
-        if (remainingLockout > TimeSpan.Zero)
-        {
-            logger.LogWarning("Login rejected: terminal locked out for {Seconds}s", (int)remainingLockout.TotalSeconds);
-            return LoginResult.Fail($"Too many attempts. Try again in {(int)Math.Ceiling(remainingLockout.TotalSeconds)} seconds.");
-        }
-
+        if (LockoutMessage() is { } locked)
+            return LoginResult.Fail(locked);
         if (!PinHasher.IsValidPinFormat(pin))
             return RegisterFailure("PIN format invalid");
 
@@ -51,6 +86,11 @@ public class AuthenticationService(
         if (user is null)
             return RegisterFailure("no matching user");
 
+        return Succeed(user);
+    }
+
+    private LoginResult Succeed(User user)
+    {
         lock (_gate)
         {
             _failedAttempts = 0;
@@ -60,6 +100,14 @@ public class AuthenticationService(
         session.SignIn(user);
         logger.LogInformation("Login succeeded for user {UserId} ({Username}, {Role})", user.Id, user.Username, user.Role);
         return LoginResult.Ok(user);
+    }
+
+    private string? LockoutMessage()
+    {
+        var remaining = GetRemainingLockout();
+        if (remaining <= TimeSpan.Zero) return null;
+        logger.LogWarning("Login rejected: terminal locked out for {Seconds}s", (int)remaining.TotalSeconds);
+        return $"Too many attempts. Try again in {(int)Math.Ceiling(remaining.TotalSeconds)} seconds.";
     }
 
     public void Logout()

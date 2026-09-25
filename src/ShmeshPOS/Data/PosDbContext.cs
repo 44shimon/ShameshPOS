@@ -13,6 +13,9 @@ public class PosDbContext(DbContextOptions<PosDbContext> options) : DbContext(op
     public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<ReceiptSequence> ReceiptSequences => Set<ReceiptSequence>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerTransaction> CustomerTransactions => Set<CustomerTransaction>();
+    public DbSet<StoreSetting> StoreSettings => Set<StoreSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
