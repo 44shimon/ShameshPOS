@@ -90,6 +90,65 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
 | + / − | Change selected line quantity (when the search box is empty) |
 | ↑ / ↓ | Select cart line |
 
+## Reports (F3 → 7, administrators)
+
+- Pick **Today / Yesterday / This Week / This Month** or any From–To dates.
+- **Summary:** total sales, number of sales, average sale, items sold, tax; totals by payment method and
+  by cashier; top items; customer-account charges and payments; and the **cash expected in the drawer**
+  (cash sales + cash paid onto accounts; add your opening float). A one-day period is the **end-of-day
+  report**, shown as it will print; **Print Report** sends it to the receipt printer.
+- **Sales:** every sale in the period with time, cashier, customer and payment; click one to see its receipt
+  and **Reprint Receipt**.
+- Figures come from the saved sales (names and prices as they were when sold). Account payments are not
+  sales, so they appear under Customer accounts and in the cash drawer, not in total sales.
+
+## Receipts and printing
+
+- After each sale the Sale Complete message has **Print Receipt** (Enter/Esc still mean Next Customer).
+  With **automatic printing** on, the receipt prints straight away and the button reprints it.
+- Administration → Settings: receipt **header** (store name, address, phone) and **footer**, shared by all
+  registers; this register's **receipt printer** (any installed Windows printer; install the printer's
+  Windows driver first, e.g. Epson TM-series or Star TSP) and **automatic printing**; **Print Test Receipt**.
+- Receipts are 42-column text for 80 mm paper, printed as one continuous page so roll printers cut once.
+
+## Backups and restore
+
+- The POS makes a full backup (`pg_dump`, custom format) **once a day** while it runs, to
+  `%ProgramData%\ShmeshPOS\backups\shmesh_pos_YYYYMMDD_HHMMSS.backup`, and deletes backups older than 30 days.
+  Administration → Settings shows the last backup and has **Back Up Now**.
+- `pg_dump.exe` is found automatically under `C:\Program Files\PostgreSQL\<version>\bin`; install the
+  PostgreSQL command-line tools on the computer that should make backups (normally the server), and set
+  `"Backup": { "Enabled": false }` on registers that shouldn't. Settings: `Backup:Folder`, `Backup:KeepDays`,
+  `Backup:PgDumpPath`.
+- **Copy backups off the machine** (USB drive, another PC, cloud folder); a backup on the same disk doesn't
+  survive a disk failure.
+- **Restore** (administrator, with every register closed):
+
+  ```powershell
+  # into a new database first, to check it:
+  & "C:\Program Files\PostgreSQL\18\bin\createdb.exe" -U postgres -O shmesh_pos shmesh_pos_restored
+  & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" -U postgres -d shmesh_pos_restored --no-owner --role=shmesh_pos "C:\ProgramData\ShmeshPOS\backups\shmesh_pos_20260925_055959.backup"
+  # then point the registers' connection string at shmesh_pos_restored (or rename the databases).
+  ```
+
+## Installing on a register
+
+1. **Server (once):** install PostgreSQL, run `scripts/create-database.sql` with a strong password, and allow
+   the registers' IP addresses in `pg_hba.conf` (local network only).
+2. **Build:** on the development PC run `.\scripts\publish.ps1`. It runs the tests and creates
+   `publish\ShmeshPOS\` with a self-contained `ShmeshPOS.exe` (no .NET install needed on the register).
+3. **Copy** that folder to the register, e.g. `C:\Program Files\ShmeshPOS`.
+4. **Configure:** copy `register-appsettings.example.json` to `%ProgramData%\ShmeshPOS\appsettings.json`
+   and set the server name, password, and `TerminalName` (e.g. `REGISTER-1`). For the first register only,
+   set `Seed:AdminPin` to create the first administrator. Set `Pos:FullScreen` to `true` for kiosk mode.
+   Restrict the file so only administrators and the POS Windows account can read it (it holds the password).
+5. **Start:** create a desktop shortcut to `ShmeshPOS.exe` (add it to `shell:startup` to open at logon).
+   The first start creates the tables. Then add real users, products and customers in Administration
+   (or import them), untick the sample products, and choose the 10 main-screen items.
+6. **Printer:** install the receipt printer's Windows driver, then pick it in Administration → Settings.
+
+Updating: publish again and replace the folder; database changes are applied automatically at start-up.
+
 ## Customer accounts
 
 Customers can have a charge account: purchases are charged to the account and paid off later.
@@ -183,7 +242,7 @@ dotnet test
 
 ## Roadmap
 
-Built so far: phases 1–4 (foundation, login, catalog, cart, F3 menu, F8 payment, transactional sale completion,
-product/category/user administration with roles).
-Next (phase 5): reports and end of day, receipt printing, cash drawer, held sales, returns and backups. The F3
-menu already lists these, and they report "not available yet".
+All five phases are built: foundation, selling, payment, administration, and reports/receipts/backups/
+deployment, plus customer accounts, spreadsheet import and the 10-item main screen.
+Possible next steps: held sales, returns/refunds, cash-drawer kick-out and opening float, inventory,
+discounts. The F3 menu lists Hold Sale, Retrieve Sale, Open Drawer and Returns as "not available yet".

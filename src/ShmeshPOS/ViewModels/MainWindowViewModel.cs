@@ -84,6 +84,7 @@ public partial class MainWindowViewModel(
         var pos = services.GetRequiredService<PosViewModel>();
         pos.LogoutRequested += (_, _) => ShowLogin();
         pos.AdministrationRequested += async (_, _) => await ShowAdministrationAsync(pos);
+        pos.ReportsRequested += async (_, _) => await ShowReportsAsync(pos);
         CurrentView = pos;
     }
 
@@ -108,6 +109,15 @@ public partial class MainWindowViewModel(
         };
         CurrentView = admin;
         await admin.InitializeAsync();
+    }
+
+    /// <summary>Opens reports over the register; the sale in progress is kept.</summary>
+    private async Task ShowReportsAsync(PosViewModel pos)
+    {
+        var reports = services.GetRequiredService<ReportsViewModel>();
+        reports.Closed += (_, _) => CurrentView = pos;
+        CurrentView = reports;
+        await reports.InitializeAsync();
     }
 
     public bool HandleKey(Key key, bool textInputFocused) =>

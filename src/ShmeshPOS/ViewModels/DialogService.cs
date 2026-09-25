@@ -9,10 +9,19 @@ public interface IDialogService
 {
     Task ShowMessageAsync(string title, string message, string okText = "OK");
     Task<bool> ConfirmAsync(string title, string message, string confirmText = "Yes", string cancelText = "No");
+
+    /// <summary>
+    /// A message with a main button and an optional side action (e.g. "Print Receipt").
+    /// Enter and Esc both choose the main button. Returns true only when the side action was pressed.
+    /// </summary>
+    Task<bool> ShowMessageWithActionAsync(string title, string message, string okText, string actionText);
 }
 
-public partial class DialogViewModel(string title, string message, string confirmText, string? cancelText) : ObservableObject
+public partial class DialogViewModel(string title, string message, string confirmText, string? cancelText, bool escapeConfirms = false) : ObservableObject
 {
+    /// <summary>When true, Esc presses the main button instead of the secondary one.</summary>
+    public bool EscapeConfirms { get; } = escapeConfirms;
+
     private readonly TaskCompletionSource<bool> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public string Title { get; } = title;
@@ -48,6 +57,9 @@ public partial class DialogService : ObservableObject, IDialogService, IKeyboard
     public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Yes", string cancelText = "No") =>
         ShowAsync(new DialogViewModel(title, message, confirmText, cancelText));
 
+    public async Task<bool> ShowMessageWithActionAsync(string title, string message, string okText, string actionText) =>
+        !await ShowAsync(new DialogViewModel(title, message, okText, actionText, escapeConfirms: true));
+
     private async Task<bool> ShowAsync(DialogViewModel dialog)
     {
         await _gate.WaitAsync();
@@ -71,6 +83,9 @@ public partial class DialogService : ObservableObject, IDialogService, IKeyboard
         switch (key)
         {
             case Key.Enter:
+                dialog.ConfirmCommand.Execute(null);
+                break;
+            case Key.Escape when dialog.EscapeConfirms:
                 dialog.ConfirmCommand.Execute(null);
                 break;
             case Key.Escape:

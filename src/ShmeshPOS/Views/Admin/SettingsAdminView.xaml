@@ -1,30 +1,125 @@
 <UserControl x:Class="ShmeshPOS.Views.Admin.SettingsAdminView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <StackPanel HorizontalAlignment="Left" Width="620">
-        <TextBlock Text="Settings" Style="{StaticResource Heading}" />
-        <TextBlock Text="These apply to every register in the store." Style="{StaticResource Muted}" Margin="0,2,0,18" />
+    <UserControl.Resources>
+        <Style x:Key="MultiLineBox" TargetType="TextBox" BasedOn="{StaticResource FormBox}">
+            <Setter Property="Height" Value="110" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="FontFamily" Value="Consolas, Courier New" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <!-- Text starts at the top (the single-line FormBox template centres it). -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1.5" CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Stretch" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
 
-        <Border Style="{StaticResource Card}" CornerRadius="12" Padding="24,20">
+    <DockPanel>
+        <!-- Title, messages, save -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <Button DockPanel.Dock="Right" Style="{StaticResource SuccessButton}" FontSize="19" Width="200" Command="{Binding SaveCommand}"
+                    VerticalAlignment="Top">
+                <TextBlock><Run Text="Save" /><Run Text="  Ctrl+S" FontSize="13" FontWeight="SemiBold" /></TextBlock>
+            </Button>
             <StackPanel>
-                <TextBlock Text="Customer accounts" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
-                <TextBlock Style="{StaticResource FormHint}" FontSize="14" Margin="0,4,0,16"
-                           Text="The default credit limit is the most a customer may owe on their account. It applies to every customer who doesn't have their own limit set on the Customers tab. Set 0.00 to stop charging to accounts unless a customer has their own limit." />
-
-                <TextBlock Text="DEFAULT CREDIT LIMIT ($)" Style="{StaticResource FormLabel}" />
-                <TextBox Style="{StaticResource FormBox}" Width="220" HorizontalAlignment="Left" TextAlignment="Right"
-                         Text="{Binding DefaultCreditLimitText, UpdateSourceTrigger=PropertyChanged}" />
-
-                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" TextAlignment="Left" Margin="0,14,0,0"
+                <TextBlock Text="Settings" Style="{StaticResource Heading}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0">
+                    <Run Text="Store settings apply to every register. Printer settings apply to this register only (" /><Run Text="{Binding TerminalName, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=")." />
+                </TextBlock>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" TextAlignment="Left" Margin="0,8,0,0"
                            Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibility}}" />
-                <TextBlock Text="{Binding StatusMessage}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource SuccessDarkBrush}" Margin="0,14,0,0"
-                           Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibility}}" />
-
-                <Button Style="{StaticResource SuccessButton}" FontSize="19" Width="220" HorizontalAlignment="Left" Margin="0,18,0,0"
-                        Command="{Binding SaveCommand}">
-                    <TextBlock><Run Text="Save" /><Run Text="  Ctrl+S" FontSize="13" FontWeight="SemiBold" /></TextBlock>
-                </Button>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource SuccessDarkBrush}" Margin="0,8,0,0"
+                           TextWrapping="Wrap" Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibility}}" />
             </StackPanel>
-        </Border>
-    </StackPanel>
+        </DockPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <!-- Receipts -->
+                    <Border Style="{StaticResource Card}" CornerRadius="12" Padding="24,20" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Receipts" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                            <TextBlock Text="Printed centred at the top and bottom of every receipt. One line per row, up to 8 lines each."
+                                       Style="{StaticResource FormHint}" FontSize="14" Margin="0,4,0,14" />
+
+                            <TextBlock Text="HEADER (store name, address, phone)" Style="{StaticResource FormLabel}" />
+                            <TextBox Style="{StaticResource MultiLineBox}" Text="{Binding ReceiptHeader, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Text="FOOTER" Style="{StaticResource FormLabel}" Margin="0,14,0,5" />
+                            <TextBox Style="{StaticResource MultiLineBox}" Height="80" Text="{Binding ReceiptFooter, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,20,0,16" />
+
+                            <TextBlock FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextBrush}">
+                                <Run Text="Receipt printer for" /><Run Text="{Binding TerminalName, Mode=OneWay, StringFormat={} {0}}" />
+                            </TextBlock>
+                            <ComboBox Style="{StaticResource FormCombo}" ItemsSource="{Binding Printers}" SelectedItem="{Binding Printer}" Margin="0,8,0,10" />
+                            <CheckBox Style="{StaticResource FormCheck}" Content="Print a receipt automatically after every sale" IsChecked="{Binding AutoPrint}" />
+                            <TextBlock Style="{StaticResource FormHint}" Margin="0,4,0,12"
+                                       Text="When off, the cashier taps Print Receipt on the Sale Complete message when a customer wants one." />
+                            <Button Content="Print Test Receipt" Style="{StaticResource PosButton}" FontSize="16" MinHeight="46" HorizontalAlignment="Left"
+                                    Command="{Binding PrintTestCommand}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <!-- Customer accounts -->
+                    <Border Style="{StaticResource Card}" CornerRadius="12" Padding="24,20" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Customer accounts" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                            <TextBlock Style="{StaticResource FormHint}" FontSize="14" Margin="0,4,0,16"
+                                       Text="The default credit limit is the most a customer may owe on their account. It applies to every customer who doesn't have their own limit set on the Customers tab. Set 0.00 to stop charging to accounts unless a customer has their own limit." />
+                            <TextBlock Text="DEFAULT CREDIT LIMIT ($)" Style="{StaticResource FormLabel}" />
+                            <TextBox Style="{StaticResource FormBox}" Width="220" HorizontalAlignment="Left" TextAlignment="Right"
+                                     Text="{Binding DefaultCreditLimitText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Backups -->
+                    <Border Style="{StaticResource Card}" CornerRadius="12" Padding="24,20">
+                        <StackPanel>
+                            <TextBlock Text="Backups" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
+                            <TextBlock Style="{StaticResource FormHint}" FontSize="14" Margin="0,4,0,12"
+                                       Text="A full copy of the database is saved automatically once a day while the POS is running on this computer. Backups older than 30 days are deleted." />
+                            <TextBlock Text="{Binding LastBackupText}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                            <TextBlock Style="{StaticResource FormHint}" TextWrapping="Wrap" Margin="0,4,0,14">
+                                <Run Text="Folder: " /><Run Text="{Binding BackupFolder, Mode=OneWay}" />
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Back Up Now" Style="{StaticResource PrimaryButton}" FontSize="16" MinHeight="46" MinWidth="180"
+                                        Command="{Binding BackupNowCommand}" />
+                                <TextBlock Text="Backing up…" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"
+                                           Visibility="{Binding IsBackingUp, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource FormHint}" Margin="0,12,0,0"
+                                       Text="Copy backups to a USB drive or another computer regularly. Restoring is done by an administrator with pg_restore (see README)." />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
 </UserControl>

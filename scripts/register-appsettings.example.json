@@ -1,0 +1,19 @@
+{
+  "ConnectionStrings": {
+    "ShmeshPos": "Host=POS-SERVER;Port=5432;Database=shmesh_pos;Username=shmesh_pos;Password=CHANGE_ME;Application Name=Shmesh POS;Timeout=10"
+  },
+  "Pos": {
+    "TerminalName": "REGISTER-1",
+    "FullScreen": false
+  },
+  "Seed": {
+    "AdminPin": "",
+    "SampleData": false
+  },
+  "Backup": {
+    "Enabled": true,
+    "Folder": "",
+    "KeepDays": 30,
+    "PgDumpPath": ""
+  }
+}

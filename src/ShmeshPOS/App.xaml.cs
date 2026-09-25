@@ -93,6 +93,7 @@ public partial class App : Application, IApplicationControl
         });
         builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
         builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
+        builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
 
         var connectionString = builder.Configuration.GetConnectionString(DbConfigurator.ConnectionStringName);
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -115,6 +116,12 @@ public partial class App : Application, IApplicationControl
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<ICustomerService, CustomerService>();
         builder.Services.AddSingleton<IImportService, ImportService>();
+        builder.Services.AddSingleton<IReportService, ReportService>();
+        builder.Services.AddSingleton<IReceiptPrinter, ReceiptPrinter>();
+        builder.Services.AddSingleton<IReceiptService, ReceiptService>();
+        builder.Services.AddSingleton<BackupService>();
+        builder.Services.AddSingleton<IBackupService>(sp => sp.GetRequiredService<BackupService>());
+        builder.Services.AddHostedService<DailyBackupScheduler>();
         builder.Services.AddSingleton<IFileDialogService, FileDialogService>();
 
         // UI
@@ -124,6 +131,7 @@ public partial class App : Application, IApplicationControl
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<PosViewModel>();
         builder.Services.AddTransient<AdministrationViewModel>();
+        builder.Services.AddTransient<ReportsViewModel>();
         builder.Services.AddTransient<ProductsAdminViewModel>();
         builder.Services.AddTransient<CategoriesAdminViewModel>();
         builder.Services.AddTransient<UsersAdminViewModel>();

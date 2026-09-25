@@ -20,6 +20,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     private readonly IAuthenticationService _auth;
     private readonly IDialogService _dialogs;
     private readonly ICustomerService _customers;
+    private readonly IReceiptService _receipts;
     private readonly IApplicationControl _app;
     private readonly ILogger<PosViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
@@ -32,6 +33,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         IAuthenticationService auth,
         IDialogService dialogs,
         ICustomerService customers,
+        IReceiptService receipts,
         IApplicationControl app,
         IOptions<PosOptions> options,
         ILogger<PosViewModel> logger)
@@ -43,6 +45,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         _auth = auth;
         _dialogs = dialogs;
         _customers = customers;
+        _receipts = receipts;
         _app = app;
         _logger = logger;
 
@@ -90,6 +93,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     public event EventHandler? FocusSearchRequested;
     public event EventHandler? LogoutRequested;
     public event EventHandler? AdministrationRequested;
+    public event EventHandler? ReportsRequested;
 
     public bool HasMainScreenProducts => MainScreenProducts.Count > 0;
 
@@ -253,14 +257,48 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         Payment = payment;
     }
 
-    private Task ShowSaleCompleteAsync(CompletedSale sale)
+    private async Task ShowSaleCompleteAsync(CompletedSale sale)
     {
+        var autoPrinted = false;
+        try
+        {
+            if (await _receipts.IsAutoPrintAsync())
+            {
+                await _receipts.PrintSaleAsync(sale.SaleId);
+                autoPrinted = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The sale is saved; a printer problem must not block the next customer.
+            _logger.LogError(ex, "Automatic receipt printing failed for sale {SaleId}", sale.SaleId);
+        }
+
         var message = sale.ChangeGiven is { } change
             ? $"CHANGE DUE:  {change:C}\n\nTotal {sale.Total:C}  ·  {sale.PaymentMethodName}\nReceipt {sale.ReceiptNumber}"
             : $"Total {sale.Total:C}  ·  {sale.PaymentMethodName}\nReceipt {sale.ReceiptNumber}";
         if (sale.CustomerBalance is { } balance)
             message += $"\n\nCharged to {sale.CustomerName}.\nNew account balance: {balance:C}";
-        return _dialogs.ShowMessageAsync("Sale Complete", message, "Next Customer");
+        if (await _dialogs.ShowMessageWithActionAsync("Sale Complete", message, "Next Customer", autoPrinted ? "Print Again" : "Print Receipt"))
+            await PrintReceiptAsync(sale.SaleId);
+    }
+
+    private async Task PrintReceiptAsync(long saleId)
+    {
+        try
+        {
+            await _receipts.PrintSaleAsync(saleId);
+            StatusMessage = "Receipt printed.";
+        }
+        catch (PosException ex)
+        {
+            await _dialogs.ShowMessageAsync("Receipt Not Printed", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Printing receipt for sale {SaleId} failed", saleId);
+            await _dialogs.ShowMessageAsync("Receipt Not Printed", "The receipt could not be printed. Check the printer and try again.");
+        }
     }
 
     // ---- F4 customer ------------------------------------------------------------------------
@@ -336,7 +374,8 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
             new("4", "Product Lookup", () => { SearchText = ""; FocusSearch(); return Task.CompletedTask; }),
             new("5", "Open Drawer", () => ComingSoonAsync("Open Drawer")),
             new("6", "Returns", () => ComingSoonAsync("Returns")),
-            new("7", "Reports", () => ComingSoonAsync("Reports"), _session.HasPermission(Permission.ViewReports)),
+            new("7", "Reports", () => { ReportsRequested?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; },
+                _session.HasPermission(Permission.ViewReports)),
             new("8", "Administration", OpenAdministrationAsync,
                 _session.HasPermission(Permission.ManageProducts) || _session.HasPermission(Permission.ManageUsers)),
             new("9", "Logout", LogoutAsync),
