@@ -117,6 +117,10 @@ public partial class App : Application, IApplicationControl
         builder.Services.AddSingleton<ICustomerService, CustomerService>();
         builder.Services.AddSingleton<IImportService, ImportService>();
         builder.Services.AddSingleton<IReportService, ReportService>();
+        builder.Services.AddSingleton<IHeldSaleService, HeldSaleService>();
+        builder.Services.AddSingleton<IRefundService, RefundService>();
+        builder.Services.AddSingleton<IShiftService, ShiftService>();
+        builder.Services.AddSingleton<IStockService, StockService>();
         builder.Services.AddSingleton<IReceiptPrinter, ReceiptPrinter>();
         builder.Services.AddSingleton<IReceiptService, ReceiptService>();
         builder.Services.AddSingleton<BackupService>();

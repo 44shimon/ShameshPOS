@@ -14,6 +14,9 @@
             <admin:AdminListHeader DockPanel.Dock="Top" />
             <TextBlock DockPanel.Dock="Top" Text="{Binding MainScreenSummary}" FontSize="14" FontWeight="SemiBold"
                        Foreground="#1E40AF" Margin="2,0,0,8" />
+            <TextBlock DockPanel.Dock="Top" Text="{Binding LowStockSummary}" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{StaticResource DangerBrush}" Margin="2,-4,0,8"
+                       Visibility="{Binding LowStockSummary, Converter={StaticResource NullToVisibility}}" />
             <Border Style="{StaticResource Card}" CornerRadius="12">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Margin="16,10,16,8">
@@ -22,11 +25,13 @@
                             <ColumnDefinition Width="130" />
                             <ColumnDefinition Width="90" />
                             <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="80" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="PRODUCT" Style="{StaticResource FormLabel}" Margin="18,0,0,0" />
                         <TextBlock Grid.Column="1" Text="CATEGORY" Style="{StaticResource FormLabel}" />
                         <TextBlock Grid.Column="2" Text="PRICE" Style="{StaticResource FormLabel}" HorizontalAlignment="Right" />
                         <TextBlock Grid.Column="3" Text="TAX" Style="{StaticResource FormLabel}" HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="4" Text="STOCK" Style="{StaticResource FormLabel}" HorizontalAlignment="Right" />
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
                         <ItemsControl ItemsSource="{Binding Rows}">
@@ -44,6 +49,7 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="130" />
                                                 <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="80" />
                                                 <ColumnDefinition Width="80" />
                                             </Grid.ColumnDefinitions>
                                             <Ellipse Width="10" Height="10" VerticalAlignment="Center" HorizontalAlignment="Left"
@@ -76,6 +82,23 @@
                                                        HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" />
                                             <TextBlock Grid.Column="4" Text="{Binding Item.TaxRate, StringFormat={}{0:0.###%}}" FontSize="15"
                                                        HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                                            <!-- Stock: blank when not tracked, red when low -->
+                                            <TextBlock Grid.Column="5" Text="{Binding Item.StockQuantity}" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Item.TrackStock}" Value="False">
+                                                                <Setter Property="Visibility" Value="Hidden" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Item.IsLowOnStock}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                                                <Setter Property="FontWeight" Value="Bold" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </Grid>
                                     </Border>
                                     <DataTemplate.Triggers>
@@ -179,6 +202,91 @@
                                 <CheckBox Style="{StaticResource FormCheck}" Content="&#x2605; Show on main screen" IsChecked="{Binding ShowOnMainScreen}" />
                                 <TextBlock Style="{StaticResource FormHint}"
                                            Text="Up to 10 products appear as big buttons on the register, in button order. Other products are found by search or barcode." />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Inventory -->
+                        <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="10" Padding="16,14" Margin="0,14,0,0">
+                            <StackPanel>
+                                <CheckBox Style="{StaticResource FormCheck}" Content="Track stock" IsChecked="{Binding TrackStock}" />
+                                <TextBlock Style="{StaticResource FormHint}"
+                                           Text="Sales take stock out and returns put it back. Record deliveries and counts below." />
+                                <DockPanel Margin="0,10,0,0" Visibility="{Binding TrackStock, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBox DockPanel.Dock="Right" Style="{StaticResource FormBox}" Width="110" TextAlignment="Right"
+                                             Text="{Binding ReorderLevelText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="Low-stock alert at or below" FontSize="16" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" />
+                                </DockPanel>
+                                <TextBlock Text="Save to start tracking; then deliveries and counts can be recorded here." Style="{StaticResource FormHint}"
+                                           Visibility="{Binding ShowSaveToTrackHint, Converter={StaticResource BoolToVisibility}}" />
+
+                                <StackPanel Visibility="{Binding ShowStockPanel, Converter={StaticResource BoolToVisibility}}" Margin="0,12,0,0">
+                                    <Border Background="{StaticResource ChromeBrush}" CornerRadius="12" Padding="18,12">
+                                        <DockPanel>
+                                            <TextBlock Text="ON HAND" FontSize="16" FontWeight="SemiBold" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                            <TextBlock Text="LOW" FontSize="13" FontWeight="Bold" Foreground="#FCA5A5" VerticalAlignment="Center" Margin="12,0,0,0"
+                                                       Visibility="{Binding IsLowOnStock, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding StockQuantity}" FontSize="30" FontWeight="Black" Foreground="White" HorizontalAlignment="Right" />
+                                        </DockPanel>
+                                    </Border>
+
+                                    <StackPanel Visibility="{Binding CanManageStock, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid Margin="0,12,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="10" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="QUANTITY" Style="{StaticResource FormLabel}" />
+                                                <TextBox Style="{StaticResource FormBox}" TextAlignment="Right" Text="{Binding StockAmountText, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="NOTE (OPTIONAL)" Style="{StaticResource FormLabel}" />
+                                                <TextBox Style="{StaticResource FormBox}" MaxLength="200" Text="{Binding StockNote, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <UniformGrid Columns="2" Margin="-4,10,-4,0">
+                                            <Button Content="Receive Delivery" Style="{StaticResource PosButton}" FontSize="16" MinHeight="46" Margin="4"
+                                                    Command="{Binding DataContext.ReceiveStockCommand, RelativeSource={RelativeSource AncestorType=admin:ProductsAdminView}}" />
+                                            <Button Content="Set Counted Qty" Style="{StaticResource PosButton}" FontSize="16" MinHeight="46" Margin="4"
+                                                    Command="{Binding DataContext.CountStockCommand, RelativeSource={RelativeSource AncestorType=admin:ProductsAdminView}}" />
+                                        </UniformGrid>
+                                        <TextBlock Text="Receive adds the quantity to what is on hand. A count replaces it with what is on the shelf."
+                                                   Style="{StaticResource FormHint}" />
+
+                                        <TextBlock Text="STOCK HISTORY" Style="{StaticResource FormLabel}" Margin="0,16,0,6" />
+                                        <TextBlock Text="{Binding HistoryMessage}" Style="{StaticResource Muted}"
+                                                   Visibility="{Binding HistoryMessage, Converter={StaticResource NullToVisibility}}" />
+                                        <ItemsControl ItemsSource="{Binding History}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Padding="0,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="60" />
+                                                                <ColumnDefinition Width="60" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}">
+                                                                    <Run Text="{Binding Type, Mode=OneWay}" /><Run Text="{Binding Sale.ReceiptNumber, Mode=OneWay, StringFormat='{}  {0}'}" FontWeight="Normal" />
+                                                                </TextBlock>
+                                                                <TextBlock FontSize="12.5" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap">
+                                                                    <Run Text="{Binding CreatedAt, Mode=OneWay, Converter={StaticResource UtcToLocal}, StringFormat='{}{0:MMM d, yyyy h:mm tt}'}" /><Run Text="{Binding User.DisplayName, Mode=OneWay, StringFormat='{}  ·  {0}'}" /><Run Text="{Binding Note, Mode=OneWay, StringFormat='{}  ·  {0}'}" />
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Change, StringFormat='{}{0:+0;−0;0}'}" FontSize="15" FontWeight="SemiBold"
+                                                                       HorizontalAlignment="Right" Foreground="{StaticResource TextBrush}" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding QuantityAfter}" FontSize="15"
+                                                                       HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>

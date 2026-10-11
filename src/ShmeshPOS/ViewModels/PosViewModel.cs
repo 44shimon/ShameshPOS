@@ -21,6 +21,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     private readonly IDialogService _dialogs;
     private readonly ICustomerService _customers;
     private readonly IReceiptService _receipts;
+    private readonly IHeldSaleService _held;
+    private readonly IRefundService _refunds;
+    private readonly IShiftService _shifts;
     private readonly IApplicationControl _app;
     private readonly ILogger<PosViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
@@ -34,6 +37,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         IDialogService dialogs,
         ICustomerService customers,
         IReceiptService receipts,
+        IHeldSaleService held,
+        IRefundService refunds,
+        IShiftService shifts,
         IApplicationControl app,
         IOptions<PosOptions> options,
         ILogger<PosViewModel> logger)
@@ -46,6 +52,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         _dialogs = dialogs;
         _customers = customers;
         _receipts = receipts;
+        _held = held;
+        _refunds = refunds;
+        _shifts = shifts;
         _app = app;
         _logger = logger;
 
@@ -219,6 +228,8 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
             await _dialogs.ShowMessageAsync("Not Allowed", "You are not allowed to take payments.");
             return;
         }
+        if (!await EnsureShiftOpenAsync())
+            return;
 
         IReadOnlyList<PaymentMethod> methods;
         try
@@ -238,7 +249,7 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
             return;
         }
 
-        var payment = new PaymentViewModel(Cart.ToSaleLines(), Cart.Total, methods, Customer, _sales, _logger);
+        var payment = new PaymentViewModel(Cart.ToSaleLines(), Cart.Total, methods, Customer, _sales, _dialogs, _logger, Cart.SaleDiscount);
         payment.Cancelled += (_, _) =>
         {
             Payment = null;
@@ -259,6 +270,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
 
     private async Task ShowSaleCompleteAsync(CompletedSale sale)
     {
+        if (sale.TookCash)
+            await TryOpenDrawerAsync($"cash sale {sale.ReceiptNumber}");
+
         var autoPrinted = false;
         try
         {
@@ -277,6 +291,8 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         var message = sale.ChangeGiven is { } change
             ? $"CHANGE DUE:  {change:C}\n\nTotal {sale.Total:C}  ·  {sale.PaymentMethodName}\nReceipt {sale.ReceiptNumber}"
             : $"Total {sale.Total:C}  ·  {sale.PaymentMethodName}\nReceipt {sale.ReceiptNumber}";
+        if (sale.Discount > 0)
+            message += $"\nDiscounts: {sale.Discount:C}";
         if (sale.CustomerBalance is { } balance)
             message += $"\n\nCharged to {sale.CustomerName}.\nNew account balance: {balance:C}";
         if (await _dialogs.ShowMessageWithActionAsync("Sale Complete", message, "Next Customer", autoPrinted ? "Print Again" : "Print Receipt"))
@@ -364,16 +380,18 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     [RelayCommand]
     private void OpenMenu()
     {
-        if (Payment is not null || QuantityEntry is not null || CustomerLookup is not null) return;
+        if (Payment is not null || QuantityEntry is not null || CustomerLookup is not null || HeldSales is not null || Returns is not null
+            || DiscountEntry is not null || Shift is not null) return;
 
         var items = new List<MenuItemViewModel>
         {
             new("1", "New Sale", NewSaleAsync),
-            new("2", "Hold Sale", () => ComingSoonAsync("Hold Sale")),
-            new("3", "Retrieve Sale", () => ComingSoonAsync("Retrieve Sale")),
-            new("4", "Product Lookup", () => { SearchText = ""; FocusSearch(); return Task.CompletedTask; }),
-            new("5", "Open Drawer", () => ComingSoonAsync("Open Drawer")),
-            new("6", "Returns", () => ComingSoonAsync("Returns")),
+            new("2", "Hold Sale", HoldSaleAsync, _session.HasPermission(Permission.HoldSales)),
+            new("3", "Retrieve Sale", OpenHeldSalesAsync, _session.HasPermission(Permission.HoldSales)),
+            new("4", CurrentShift is null ? "Open Shift" : "Close Shift", CurrentShift is null ? OpenShiftAsync : CloseShiftAsync,
+                _session.HasPermission(Permission.RunShifts)),
+            new("5", "Open Drawer", OpenDrawerFromMenuAsync, _session.HasPermission(Permission.OpenDrawer)),
+            new("6", "Returns", OpenReturnsAsync, _session.HasPermission(Permission.ProcessReturns)),
             new("7", "Reports", () => { ReportsRequested?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; },
                 _session.HasPermission(Permission.ViewReports)),
             new("8", "Administration", OpenAdministrationAsync,
@@ -397,6 +415,313 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     {
         AdministrationRequested?.Invoke(this, EventArgs.Empty);
         return Task.CompletedTask;
+    }
+
+    // ---- Hold / retrieve ----------------------------------------------------------------------
+
+    [ObservableProperty]
+    private HeldSalesViewModel? _heldSales;
+
+    private async Task HoldSaleAsync()
+    {
+        if (Cart.IsEmpty)
+        {
+            await _dialogs.ShowMessageAsync("Hold Sale", "There is nothing to hold. Add items first.");
+            FocusSearch();
+            return;
+        }
+
+        var label = await _dialogs.PromptAsync("Hold Sale",
+            "Add a note to find it again, e.g. a name or table number (optional).", "Hold Sale");
+        if (label is null)
+        {
+            FocusSearch();
+            return;
+        }
+
+        try
+        {
+            await _held.HoldAsync(Cart.ToSaleLines(), Customer?.Id, label, Cart.SaleDiscount);
+            StatusMessage = label.Length > 0 ? $"Sale held: “{label}” ({Cart.Total:C})" : $"Sale held ({Cart.Total:C})";
+            Cart.Clear();
+            Customer = null;
+        }
+        catch (PosException ex)
+        {
+            await _dialogs.ShowMessageAsync("Hold Sale", ex.Message);
+        }
+        FocusSearch();
+    }
+
+    private async Task OpenHeldSalesAsync()
+    {
+        if (!Cart.IsEmpty)
+        {
+            await _dialogs.ShowMessageAsync("Retrieve Sale", "Finish or hold the current sale first.");
+            FocusSearch();
+            return;
+        }
+
+        var list = new HeldSalesViewModel(_held, _dialogs, _logger);
+        list.Closed += (_, _) =>
+        {
+            HeldSales = null;
+            FocusSearch();
+        };
+        list.Retrieved += async (_, content) =>
+        {
+            HeldSales = null;
+            foreach (var line in content.Lines)
+            {
+                var added = Cart.Add(new Product { Id = line.ProductId, Name = line.ProductName, Price = line.UnitPrice, TaxRate = line.TaxRate }, line.Quantity);
+                Cart.SetDiscount(added, line.Discount);
+            }
+            Cart.SaleDiscount = content.SaleDiscount;
+            if (Cart.HasDiscounts && !CanApplyDiscounts)
+            {
+                // Discounts need an administrator; a cashier finishing the sale charges the full prices.
+                Cart.ClearDiscounts();
+                await _dialogs.ShowMessageAsync("Discounts Removed",
+                    "This held sale had discounts. Only an administrator can give discounts, so they were removed.");
+            }
+            if (content.CustomerId is { } customerId)
+            {
+                try
+                {
+                    Customer = await _customers.GetAccountAsync(customerId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not reload customer {CustomerId} for a retrieved sale", customerId);
+                }
+            }
+            StatusMessage = content.Label is { Length: > 0 } label ? $"Retrieved “{label}”" : "Held sale retrieved";
+            FocusSearch();
+        };
+        HeldSales = list;
+        await list.InitializeAsync();
+    }
+
+    // ---- Returns --------------------------------------------------------------------------------
+
+    [ObservableProperty]
+    private ReturnsViewModel? _returns;
+
+    private Task OpenReturnsAsync()
+    {
+        var returns = new ReturnsViewModel(_refunds, _payments, _logger);
+        returns.Closed += (_, _) =>
+        {
+            Returns = null;
+            FocusSearch();
+        };
+        returns.Completed += async (_, refund) =>
+        {
+            Returns = null;
+            StatusMessage = $"Refund {refund.RefundNumber}: {refund.Total:C}";
+            if (refund.Kind == PaymentKind.Cash)
+                await TryOpenDrawerAsync($"cash refund {refund.RefundNumber}");
+
+            var message = refund.Kind switch
+            {
+                PaymentKind.Cash => $"GIVE BACK:  {refund.Total:C} cash",
+                PaymentKind.Account => $"{refund.Total:C} credited to {refund.CustomerName}'s account.\nNew balance: {refund.CustomerBalance:C}",
+                _ => $"Refund {refund.Total:C} on the {refund.PaymentMethodName} terminal.",
+            };
+            if (await _dialogs.ShowMessageWithActionAsync("Refund Complete", $"{message}\n\nRefund {refund.RefundNumber}", "Done", "Print Refund Slip"))
+            {
+                try
+                {
+                    await _receipts.PrintRefundAsync(refund.RefundId);
+                }
+                catch (Exception ex) when (ex is PosException or InvalidOperationException)
+                {
+                    await _dialogs.ShowMessageAsync("Slip Not Printed", ex.Message);
+                }
+            }
+            FocusSearch();
+        };
+        Returns = returns;
+        return Task.CompletedTask;
+    }
+
+    // ---- Discounts ------------------------------------------------------------------------------
+
+    [ObservableProperty]
+    private DiscountViewModel? _discountEntry;
+
+    public bool CanApplyDiscounts => _session.HasPermission(Permission.ApplyDiscounts);
+
+    /// <summary>F6 / Discount button: a discount on the selected item or the whole sale.</summary>
+    [RelayCommand]
+    private async Task OpenDiscountAsync()
+    {
+        if (DiscountEntry is not null || Payment is not null || QuantityEntry is not null || Menu.IsOpen) return;
+        if (Cart.IsEmpty)
+        {
+            StatusMessage = "Add items before giving a discount.";
+            return;
+        }
+        if (!CanApplyDiscounts)
+        {
+            await _dialogs.ShowMessageAsync("Not Allowed", "Only an administrator can give discounts. Ask a manager to log in.");
+            FocusSearch();
+            return;
+        }
+
+        var entry = new DiscountViewModel(Cart);
+        entry.Closed += (_, choice) =>
+        {
+            DiscountEntry = null;
+            if (choice is not null)
+            {
+                if (choice.Line is { } line)
+                    Cart.SetDiscount(line, choice.Discount);
+                else
+                    Cart.SaleDiscount = choice.Discount;
+                StatusMessage = choice.Discount is { } d
+                    ? $"{d.Label} {choice.Line?.Name ?? "the whole sale"}"
+                    : "Discount removed.";
+                _logger.LogInformation("Discount {Discount} set on {Target} by user {UserId}",
+                    choice.Discount?.Label ?? "none", choice.Line?.Name ?? "whole sale", _session.CurrentUser?.Id);
+            }
+            FocusSearch();
+        };
+        DiscountEntry = entry;
+    }
+
+    // ---- Shifts ---------------------------------------------------------------------------------
+
+    /// <summary>The shift open on this register; payments need one so the drawer can be counted at closing.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShiftText))]
+    private ShiftInfo? _currentShift;
+
+    [ObservableProperty]
+    private ShiftViewModel? _shift;
+
+    public string ShiftText => CurrentShift is { } s ? $"Shift since {s.OpenedAt:h:mm tt}" : "No shift open";
+
+    /// <summary>After login: offers to open a shift if this register has none.</summary>
+    public async Task CheckShiftAsync()
+    {
+        try
+        {
+            CurrentShift = await _shifts.GetOpenShiftAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not check for an open shift");
+            return;
+        }
+        if (CurrentShift is null && _session.HasPermission(Permission.RunShifts))
+            await OpenShiftAsync();
+    }
+
+    /// <summary>True when a shift is open; otherwise starts opening one (the cashier presses Pay again afterwards).</summary>
+    private async Task<bool> EnsureShiftOpenAsync()
+    {
+        if (CurrentShift is not null) return true;
+        try
+        {
+            CurrentShift = await _shifts.GetOpenShiftAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not check for an open shift");
+            await _dialogs.ShowMessageAsync("Payment Unavailable", "Unable to check the shift. Check the connection and try again.");
+            return false;
+        }
+        if (CurrentShift is not null) return true;
+
+        if (!_session.HasPermission(Permission.RunShifts))
+        {
+            await _dialogs.ShowMessageAsync("No Shift Open", "A shift must be opened on this register before taking payment.\nAsk a manager.");
+            return false;
+        }
+        await _dialogs.ShowMessageAsync("Open Shift First", "Count the opening float into the drawer to start the shift, then take the payment.");
+        await OpenShiftAsync();
+        return false;
+    }
+
+    private async Task OpenShiftAsync()
+    {
+        if (Shift is not null) return;
+        var shift = new ShiftViewModel(ShiftStep.Open, _shifts, _receipts, _logger);
+        shift.Opened += (_, info) =>
+        {
+            CurrentShift = info;
+            StatusMessage = $"Shift opened with a {info.OpeningFloat:C} float.";
+        };
+        shift.Closed += (_, _) =>
+        {
+            Shift = null;
+            FocusSearch();
+        };
+        Shift = shift;
+        await TryOpenDrawerAsync("opening float");
+    }
+
+    private async Task CloseShiftAsync()
+    {
+        if (Shift is not null || CurrentShift is null) return;
+        if (!Cart.IsEmpty)
+        {
+            await _dialogs.ShowMessageAsync("Close Shift", "Finish or hold the current sale first.");
+            FocusSearch();
+            return;
+        }
+
+        var shift = new ShiftViewModel(ShiftStep.Close, _shifts, _receipts, _logger, CurrentShift);
+        shift.ShiftClosed += (_, report) =>
+        {
+            CurrentShift = null;
+            StatusMessage = report.Difference switch
+            {
+                > 0 => $"Shift closed: drawer over by {report.Difference:C}.",
+                < 0 => $"Shift closed: drawer short by {-report.Difference:C}.",
+                _ => "Shift closed: drawer balanced.",
+            };
+        };
+        shift.Closed += (_, _) =>
+        {
+            Shift = null;
+            FocusSearch();
+        };
+        Shift = shift;
+        await TryOpenDrawerAsync("cash count at shift close");
+    }
+
+
+    // ---- Cash drawer ----------------------------------------------------------------------------
+
+    private async Task OpenDrawerFromMenuAsync()
+    {
+        try
+        {
+            if (!await _receipts.OpenDrawerAsync("no sale (F3 → Open Drawer)"))
+                await _dialogs.ShowMessageAsync("Open Drawer",
+                    "No cash drawer is set up on this register. An administrator can turn it on in Administration → Settings.");
+        }
+        catch (PosException ex)
+        {
+            await _dialogs.ShowMessageAsync("Open Drawer", ex.Message);
+        }
+        FocusSearch();
+    }
+
+    /// <summary>Opens the drawer for cash in/out. A drawer problem never blocks the sale; it is logged.</summary>
+    private async Task TryOpenDrawerAsync(string reason)
+    {
+        try
+        {
+            await _receipts.OpenDrawerAsync(reason);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cash drawer did not open ({Reason})", reason);
+            StatusMessage = "The cash drawer did not open. Check the printer and drawer cable.";
+        }
     }
 
     private async Task ComingSoonAsync(string feature)
@@ -436,7 +761,11 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
     public bool HandleKey(Key key, bool textInputFocused)
     {
         if (QuantityEntry is not null) return QuantityEntry.HandleKey(key, textInputFocused);
+        if (DiscountEntry is not null) return DiscountEntry.HandleKey(key, textInputFocused);
+        if (Shift is not null) return Shift.HandleKey(key, textInputFocused);
         if (CustomerLookup is not null) return CustomerLookup.HandleKey(key, textInputFocused);
+        if (HeldSales is not null) return HeldSales.HandleKey(key, textInputFocused);
+        if (Returns is not null) return Returns.HandleKey(key, textInputFocused);
         if (Payment is not null) return Payment.HandleKey(key, textInputFocused);
         if (Menu.IsOpen) return Menu.HandleKey(key, textInputFocused);
 
@@ -454,6 +783,9 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
                 return true;
             case Key.F4:
                 OpenCustomerLookupCommand.Execute(null);
+                return true;
+            case Key.F6:
+                OpenDiscountCommand.Execute(null);
                 return true;
             case Key.F8:
                 OpenPaymentCommand.Execute(null);

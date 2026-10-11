@@ -16,6 +16,12 @@ public class PosDbContext(DbContextOptions<PosDbContext> options) : DbContext(op
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerTransaction> CustomerTransactions => Set<CustomerTransaction>();
     public DbSet<StoreSetting> StoreSettings => Set<StoreSetting>();
+    public DbSet<HeldSale> HeldSales => Set<HeldSale>();
+    public DbSet<HeldSaleItem> HeldSaleItems => Set<HeldSaleItem>();
+    public DbSet<Refund> Refunds => Set<Refund>();
+    public DbSet<RefundItem> RefundItems => Set<RefundItem>();
+    public DbSet<Shift> Shifts => Set<Shift>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

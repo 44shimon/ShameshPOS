@@ -79,8 +79,15 @@
                             <CheckBox Style="{StaticResource FormCheck}" Content="Print a receipt automatically after every sale" IsChecked="{Binding AutoPrint}" />
                             <TextBlock Style="{StaticResource FormHint}" Margin="0,4,0,12"
                                        Text="When off, the cashier taps Print Receipt on the Sale Complete message when a customer wants one." />
-                            <Button Content="Print Test Receipt" Style="{StaticResource PosButton}" FontSize="16" MinHeight="46" HorizontalAlignment="Left"
-                                    Command="{Binding PrintTestCommand}" />
+                            <CheckBox Style="{StaticResource FormCheck}" Content="A cash drawer is plugged into this printer" IsChecked="{Binding DrawerConnected}" />
+                            <TextBlock Style="{StaticResource FormHint}" Margin="0,4,0,12"
+                                       Text="The drawer opens for cash sales and cash refunds, and from F3 → Open Drawer. Every opening is logged." />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Print Test Receipt" Style="{StaticResource PosButton}" FontSize="16" MinHeight="46" Margin="0,0,10,0"
+                                        Command="{Binding PrintTestCommand}" />
+                                <Button Content="Open Drawer Now" Style="{StaticResource PosButton}" FontSize="16" MinHeight="46"
+                                        Command="{Binding TestDrawerCommand}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>

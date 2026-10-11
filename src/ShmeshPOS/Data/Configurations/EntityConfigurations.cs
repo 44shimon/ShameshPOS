@@ -38,6 +38,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         {
             t.HasCheckConstraint("ck_products_price_non_negative", "price >= 0");
             t.HasCheckConstraint("ck_products_tax_rate_range", "tax_rate >= 0 AND tax_rate < 1");
+            t.HasCheckConstraint("ck_products_reorder_level_non_negative", "reorder_level IS NULL OR reorder_level >= 0");
         });
 
         b.Property(p => p.Name).HasMaxLength(100);
@@ -66,12 +67,17 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
 {
     public void Configure(EntityTypeBuilder<Sale> b)
     {
-        b.ToTable(t => t.HasCheckConstraint("ck_sales_total", "total = subtotal + tax"));
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_sales_total", "total = subtotal + tax");
+            t.HasCheckConstraint("ck_sales_discount_non_negative", "discount >= 0");
+        });
         b.Property(s => s.ReceiptNumber).HasMaxLength(20);
         b.Property(s => s.TerminalName).HasMaxLength(50);
         b.Property(s => s.Subtotal).HasPrecision(12, 2);
         b.Property(s => s.Tax).HasPrecision(12, 2);
         b.Property(s => s.Total).HasPrecision(12, 2);
+        b.Property(s => s.Discount).HasPrecision(12, 2);
         b.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
 
         b.HasOne(s => s.Cashier)
@@ -95,11 +101,17 @@ public class SaleItemConfiguration : IEntityTypeConfiguration<SaleItem>
 {
     public void Configure(EntityTypeBuilder<SaleItem> b)
     {
-        b.ToTable(t => t.HasCheckConstraint("ck_sale_items_quantity_positive", "quantity > 0"));
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_sale_items_quantity_positive", "quantity > 0");
+            t.HasCheckConstraint("ck_sale_items_discounts", "discount >= 0 AND sale_discount_share >= 0 AND line_total >= 0");
+        });
         b.Property(i => i.ProductName).HasMaxLength(100);
         b.Property(i => i.UnitPrice).HasPrecision(10, 2);
         b.Property(i => i.TaxRate).HasPrecision(6, 5);
         b.Property(i => i.TaxAmount).HasPrecision(12, 2);
+        b.Property(i => i.Discount).HasPrecision(12, 2);
+        b.Property(i => i.SaleDiscountShare).HasPrecision(12, 2);
         b.Property(i => i.LineTotal).HasPrecision(12, 2);
 
         b.HasOne(i => i.Sale)
@@ -192,6 +204,7 @@ public class CustomerTransactionConfiguration : IEntityTypeConfiguration<Custome
         b.HasOne(t => t.Sale).WithMany().HasForeignKey(t => t.SaleId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(t => t.PaymentMethod).WithMany().HasForeignKey(t => t.PaymentMethodId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(t => t.Refund).WithMany().HasForeignKey(t => t.RefundId).OnDelete(DeleteBehavior.Restrict);
 
         b.HasIndex(t => new { t.CustomerId, t.CreatedAt });
         b.HasIndex(t => t.SaleId);
@@ -205,5 +218,120 @@ public class StoreSettingConfiguration : IEntityTypeConfiguration<StoreSetting>
         b.HasKey(s => s.Key);
         b.Property(s => s.Key).HasMaxLength(100);
         b.Property(s => s.Value).HasMaxLength(1000);
+    }
+}
+
+public class HeldSaleConfiguration : IEntityTypeConfiguration<HeldSale>
+{
+    public void Configure(EntityTypeBuilder<HeldSale> b)
+    {
+        b.Property(h => h.Label).HasMaxLength(60);
+        b.Property(h => h.TerminalName).HasMaxLength(50);
+        b.Property(h => h.Total).HasPrecision(12, 2);
+        b.Property(h => h.SaleDiscountKind).HasConversion<string>().HasMaxLength(10);
+        b.Property(h => h.SaleDiscountValue).HasPrecision(12, 2);
+        b.HasOne(h => h.Cashier).WithMany().HasForeignKey(h => h.CashierId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(h => h.Customer).WithMany().HasForeignKey(h => h.CustomerId).OnDelete(DeleteBehavior.SetNull);
+        b.HasIndex(h => h.CreatedAt);
+    }
+}
+
+public class HeldSaleItemConfiguration : IEntityTypeConfiguration<HeldSaleItem>
+{
+    public void Configure(EntityTypeBuilder<HeldSaleItem> b)
+    {
+        b.ToTable(t => t.HasCheckConstraint("ck_held_sale_items_quantity_positive", "quantity > 0"));
+        b.Property(i => i.ProductName).HasMaxLength(100);
+        b.Property(i => i.UnitPrice).HasPrecision(10, 2);
+        b.Property(i => i.TaxRate).HasPrecision(6, 5);
+        b.Property(i => i.DiscountKind).HasConversion<string>().HasMaxLength(10);
+        b.Property(i => i.DiscountValue).HasPrecision(12, 2);
+        b.HasOne(i => i.HeldSale).WithMany(h => h.Items).HasForeignKey(i => i.HeldSaleId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(i => i.HeldSaleId);
+    }
+}
+
+public class RefundConfiguration : IEntityTypeConfiguration<Refund>
+{
+    public void Configure(EntityTypeBuilder<Refund> b)
+    {
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_refunds_total", "total = subtotal + tax");
+            t.HasCheckConstraint("ck_refunds_total_non_negative", "total >= 0");
+        });
+        b.Property(r => r.RefundNumber).HasMaxLength(30);
+        b.Property(r => r.TerminalName).HasMaxLength(50);
+        b.Property(r => r.Reason).HasMaxLength(200);
+        b.Property(r => r.Subtotal).HasPrecision(12, 2);
+        b.Property(r => r.Tax).HasPrecision(12, 2);
+        b.Property(r => r.Total).HasPrecision(12, 2);
+        b.HasOne(r => r.OriginalSale).WithMany().HasForeignKey(r => r.OriginalSaleId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(r => r.Cashier).WithMany().HasForeignKey(r => r.CashierId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(r => r.PaymentMethod).WithMany().HasForeignKey(r => r.PaymentMethodId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(r => r.RefundNumber).IsUnique();
+        b.HasIndex(r => r.OriginalSaleId);
+        b.HasIndex(r => r.CreatedAt);
+    }
+}
+
+public class RefundItemConfiguration : IEntityTypeConfiguration<RefundItem>
+{
+    public void Configure(EntityTypeBuilder<RefundItem> b)
+    {
+        b.ToTable(t => t.HasCheckConstraint("ck_refund_items_quantity_positive", "quantity > 0"));
+        b.Property(i => i.ProductName).HasMaxLength(100);
+        b.Property(i => i.UnitPrice).HasPrecision(10, 2);
+        b.Property(i => i.TaxRate).HasPrecision(6, 5);
+        b.Property(i => i.TaxAmount).HasPrecision(12, 2);
+        b.Property(i => i.LineTotal).HasPrecision(12, 2);
+        b.HasOne(i => i.Refund).WithMany(r => r.Items).HasForeignKey(i => i.RefundId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(i => i.SaleItem).WithMany().HasForeignKey(i => i.SaleItemId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(i => i.RefundId);
+        b.HasIndex(i => i.SaleItemId);
+    }
+}
+
+public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
+{
+    public void Configure(EntityTypeBuilder<Shift> b)
+    {
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_shifts_opening_float_non_negative", "opening_float >= 0");
+            t.HasCheckConstraint("ck_shifts_counted_cash_non_negative", "counted_cash IS NULL OR counted_cash >= 0");
+            t.HasCheckConstraint("ck_shifts_closed_complete", "(closed_at IS NULL) = (counted_cash IS NULL)");
+        });
+        b.Property(s => s.TerminalName).HasMaxLength(50);
+        b.Property(s => s.OpeningFloat).HasPrecision(12, 2);
+        b.Property(s => s.ExpectedCash).HasPrecision(12, 2);
+        b.Property(s => s.CountedCash).HasPrecision(12, 2);
+        b.Property(s => s.Note).HasMaxLength(200);
+        b.Ignore(s => s.IsOpen);
+        b.Ignore(s => s.Difference);
+        b.HasOne(s => s.OpenedBy).WithMany().HasForeignKey(s => s.OpenedById).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(s => s.ClosedBy).WithMany().HasForeignKey(s => s.ClosedById).OnDelete(DeleteBehavior.Restrict);
+
+        // One open shift per register; two registers opening at once can't both succeed.
+        b.HasIndex(s => s.TerminalName).IsUnique().HasFilter("closed_at IS NULL").HasDatabaseName("ix_shifts_one_open_per_terminal");
+        b.HasIndex(s => s.OpenedAt);
+    }
+}
+
+public class StockMovementConfiguration : IEntityTypeConfiguration<StockMovement>
+{
+    public void Configure(EntityTypeBuilder<StockMovement> b)
+    {
+        b.Property(m => m.Type).HasConversion<string>().HasMaxLength(20);
+        b.Property(m => m.Note).HasMaxLength(200);
+        b.Property(m => m.TerminalName).HasMaxLength(50);
+        b.HasOne(m => m.Product).WithMany().HasForeignKey(m => m.ProductId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(m => m.Sale).WithMany().HasForeignKey(m => m.SaleId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(m => m.Refund).WithMany().HasForeignKey(m => m.RefundId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(m => m.User).WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(m => new { m.ProductId, m.CreatedAt });
+        b.HasIndex(m => m.SaleId);
+        b.HasIndex(m => m.RefundId);
     }
 }

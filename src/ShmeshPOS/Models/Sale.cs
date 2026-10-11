@@ -17,9 +17,13 @@ public class Sale
     /// <summary>Name of the POS terminal that recorded the sale.</summary>
     public required string TerminalName { get; set; }
 
+    /// <summary>Sum of the line totals, after discounts and before tax.</summary>
     public decimal Subtotal { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
+
+    /// <summary>Everything taken off the sale's prices (line discounts plus the whole-sale discount), before tax.</summary>
+    public decimal Discount { get; set; }
     public SaleStatus Status { get; set; } = SaleStatus.Completed;
     public DateTime CreatedAt { get; set; }
 

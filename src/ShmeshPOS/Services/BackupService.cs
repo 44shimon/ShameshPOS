@@ -117,6 +117,8 @@ public class BackupService(
 
             var watch = Stopwatch.StartNew();
             using var process = Process.Start(start) ?? throw new PosException("pg_dump could not be started.");
+            // Drain both pipes so pg_dump can never block on a full output buffer.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
             var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
@@ -132,6 +134,7 @@ public class BackupService(
                     throw new PosException("The backup took too long and was stopped.");
                 }
             }
+            await stdoutTask;
             var stderr = (await stderrTask).Trim();
 
             if (process.ExitCode != 0 || !File.Exists(partial) || new FileInfo(partial).Length == 0)

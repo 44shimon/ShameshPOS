@@ -83,12 +83,53 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
 | F2 | Focus search (clears it) |
 | F3 | Menu (↑/↓ + Enter, or the item number; Esc closes) |
 | F4 | Customer: attach a customer to the sale, or take a payment on their account |
+| F6 | Discount on the selected item or the whole sale (administrators) |
 | F8 | Payment |
 | Enter | In search: add exact code/SKU/barcode match, else top result. In payment: complete |
 | Esc | Close overlay / clear search |
 | Delete | Remove selected line (when the search box is empty) |
 | + / − | Change selected line quantity (when the search box is empty) |
 | ↑ / ↓ | Select cart line |
+
+## Hold, retrieve, returns and the cash drawer
+
+- **Hold Sale (F3 → 2):** parks the current sale (items, prices and customer) with an optional note such as a
+  name or table number, and clears the register for the next customer. Held sales are shared by all registers.
+- **Retrieve Sale (F3 → 3):** lists held sales (note, items, total, who held it and where). Retrieve puts it
+  back in the cart; each held sale can only be retrieved once, even if two registers try at the same moment.
+  The register must be empty first.
+- **Returns (F3 → 6, administrators):** scan or type the receipt number, choose how many of each item come
+  back ("Return Everything" for a full refund), choose how the money goes back (the original payment method
+  is offered first; *Charge to Account* credits the customer's account when the sale had one), add a reason,
+  then **Refund**. Nothing can be returned twice: quantities are checked against earlier refunds while the
+  sale is locked. Returning the last of a line gives back exactly what was charged, including tax.
+  Refund numbers are the receipt number plus `-R1`, `-R2`, … A refund slip can be printed.
+- **Reports** show refunds on the day they happen, **net sales** (sales − refunds), and take cash refunds out
+  of the expected drawer cash.
+- **Cash drawer:** if a drawer is plugged into the receipt printer (Administration → Settings, "A cash drawer is
+  plugged into this printer"), it opens for cash sales and cash refunds, and from **F3 → 5 Open Drawer**
+  ("no sale"). Every opening is logged with who and why. "Open Drawer Now" in Settings tests the cable.
+  The signal is the standard ESC/POS pulse (Epson, Star, Bixolon and compatibles).
+
+## Shifts, discounts, split payments and stock
+
+- **Shifts (F3 → 4):** each register runs its own shift. After login a cashier or administrator is offered
+  **Open Shift**: count the opening float into the drawer and enter it. Payment needs an open shift; pressing
+  Pay without one opens it first. **Close Shift** (the cart must be empty) asks for the cash counted in the
+  drawer and shows **expected** (float + cash sales after change + cash paid onto accounts − cash refunds),
+  **counted**, and **over/short**, with a printable shift report. The top bar shows "Shift since …".
+- **Discounts (F6 or the Discount button, administrators):** a percentage or an amount off the selected item,
+  or off the whole sale. Discounts come off before tax; a whole-sale discount is spread over the lines to the
+  cent, so returns give back exactly what was paid. They show under each line and above the subtotal, print on
+  the receipt and appear in Reports. Held sales keep their discounts; a cashier retrieving one gets full prices.
+- **Split payments:** in the payment screen, enter less than is due to take that amount as one part (e.g. $20
+  cash), then pay the rest by another method. Only cash can give change. Nothing is saved until the parts cover
+  the total; all parts are saved in the sale's single transaction.
+- **Stock (Administration → Products):** tick **Track stock** and save, then use **Receive Delivery** (adds to
+  what is on hand) or **Set Counted Qty** (replaces it with a shelf count; the difference is recorded). Sales
+  take stock out and returns put it back. Set a **low-stock alert** level; low items show in red in the list,
+  the count of them shows above it, and typing `low` in the search box lists them. Every change is kept in the
+  product's **stock history**. Stock can go below zero if more is sold than was counted; sales are never blocked.
 
 ## Reports (F3 → 7, administrators)
 
@@ -99,6 +140,9 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
   report**, shown as it will print; **Print Report** sends it to the receipt printer.
 - **Sales:** every sale in the period with time, cashier, customer and payment; click one to see its receipt
   and **Reprint Receipt**.
+- **Shifts:** every shift opened in the period, per register, with float, expected and counted cash and
+  over/short (short in red). Click one to see its report and **Print Shift Report**. An open shift shows its
+  figures so far.
 - Figures come from the saved sales (names and prices as they were when sold). Account payments are not
   sales, so they appear under Customer accounts and in the cash drawer, not in total sales.
 
@@ -221,6 +265,10 @@ trailing Enter adds the matching product.
   if the database leaks. The real protection is keeping the database private.
 - **Authorisation** checks permissions, not roles (`Security/RolePermissions.cs`), so new roles are a one-line change.
 - **Catalog** is loaded into memory at each login; search never touches the database.
+- **Stock** changes only through `stock_movements` rows (sale, refund, delivery, count), written in the same
+  transaction as the sale or refund. Product rows are locked `FOR UPDATE` in id order, so two registers selling
+  the last item can't lose an update or deadlock.
+- **Shift close** saves the expected cash at the moment of closing, so a reprinted shift report never changes.
 
 ## Database migrations
 
@@ -244,5 +292,5 @@ dotnet test
 
 All five phases are built: foundation, selling, payment, administration, and reports/receipts/backups/
 deployment, plus customer accounts, spreadsheet import and the 10-item main screen.
-Possible next steps: held sales, returns/refunds, cash-drawer kick-out and opening float, inventory,
-discounts. The F3 menu lists Hold Sale, Retrieve Sale, Open Drawer and Returns as "not available yet".
+Phase 6 added hold/retrieve, returns and refunds, and the cash drawer. Phase 7 added shifts with opening
+float and closing cash count, discounts, split payments, and stock tracking.

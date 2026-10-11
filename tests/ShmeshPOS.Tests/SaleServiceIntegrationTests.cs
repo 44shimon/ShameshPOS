@@ -16,6 +16,8 @@ public sealed class PostgresFactAttribute : FactAttribute
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(PostgresTestBase.ConnectionVariable)))
             Skip = $"Set {PostgresTestBase.ConnectionVariable} to run PostgreSQL integration tests.";
+        // A stuck test fails with its name instead of stalling the whole run.
+        Timeout = 180_000;
     }
 }
 
@@ -41,6 +43,8 @@ public abstract class PostgresTestBase : IAsyncLifetime
         {
             Database = $"shmesh_pos_test_{Guid.NewGuid():N}",
             Pooling = false,
+            Timeout = 15,
+            CommandTimeout = 120,
         };
         _databaseName = builder.Database!;
         _maintenanceConnectionString = new NpgsqlConnectionStringBuilder(builder.ConnectionString) { Database = "postgres" }.ConnectionString;

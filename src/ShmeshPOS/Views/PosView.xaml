@@ -54,7 +54,7 @@
                     <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding CashierName}" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Right" />
                         <TextBlock FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Right">
-                            <Run Text="{Binding TerminalName, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Now, Mode=OneWay, StringFormat={}{0:ddd h:mm tt}}" />
+                            <Run Text="{Binding TerminalName, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding ShiftText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Now, Mode=OneWay, StringFormat={}{0:ddd h:mm tt}}" />
                         </TextBlock>
                     </StackPanel>
                     <Button Style="{StaticResource ChromeButton}" Command="{Binding OpenMenuCommand}">
@@ -164,7 +164,7 @@
                 <!-- Status line + shortcut legend -->
                 <DockPanel Grid.Row="1" Height="44">
                     <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" VerticalAlignment="Center"
-                               Text="F2 Search   ·   F3 Menu   ·   F4 Customer   ·   F8 Pay   ·   Del Remove   ·   +/− Qty" />
+                               Text="F2 Search   ·   F3 Menu   ·   F4 Customer   ·   F6 Discount   ·   F8 Pay   ·   Del Remove   ·   +/− Qty" />
                     <TextBlock Text="{Binding StatusMessage}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
                                Foreground="{StaticResource PrimaryDarkBrush}" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
@@ -245,6 +245,9 @@
                                                                    Foreground="{StaticResource TextBrush}" />
                                                         <TextBlock Style="{StaticResource Muted}" FontSize="14"
                                                                    Text="{Binding UnitPrice, StringFormat={}{0:C} each}" />
+                                                        <TextBlock Text="{Binding DiscountText}" FontSize="14" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource SuccessDarkBrush}"
+                                                                   Visibility="{Binding HasDiscount, Converter={StaticResource BoolToVisibility}}" />
                                                     </StackPanel>
                                                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                                         <Button Style="{StaticResource QtyButton}" Content="−"
@@ -273,9 +276,17 @@
                     </Border>
 
                     <!-- Line actions for the selected item -->
-                    <UniformGrid Grid.Row="2" Columns="3" Margin="14,12,14,4">
+                    <UniformGrid Grid.Row="2" Columns="4" Margin="14,12,14,4">
                         <Button Content="Qty…" Style="{StaticResource PosButton}" Margin="4" Padding="4,8" FontSize="17" Command="{Binding ChangeQuantityCommand}" />
                         <Button Content="Remove" Style="{StaticResource PosButton}" Margin="4" Padding="4,8" FontSize="17" Command="{Binding RemoveLineCommand}" />
+                        <Button Style="{StaticResource PosButton}" Margin="4" Padding="4,8" FontSize="17" Command="{Binding OpenDiscountCommand}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Discount" />
+                                <Border Style="{StaticResource KeyHint}" Background="{StaticResource AppBackgroundBrush}" Margin="8,0,0,0">
+                                    <TextBlock Text="F6" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
                         <Button Content="Cancel Sale" Style="{StaticResource DangerButton}" Margin="4" Padding="4,8" FontSize="17" Command="{Binding ClearSaleCommand}" />
                     </UniformGrid>
 
@@ -285,16 +296,24 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <DockPanel Grid.Row="0">
+                        <DockPanel Grid.Row="0" Margin="0,0,0,4" Visibility="{Binding Cart.HasSaleDiscount, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Cart.SaleDiscountAmount, StringFormat=−{0:C}}" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{StaticResource SuccessDarkBrush}" />
+                            <TextBlock FontSize="17" Foreground="{StaticResource SuccessDarkBrush}">
+                                <Run Text="Discount on sale" /><Run Text="{Binding Cart.SaleDiscount.Label, Mode=OneWay, StringFormat='{}  ({0})'}" />
+                            </TextBlock>
+                        </DockPanel>
+                        <DockPanel Grid.Row="1">
                             <TextBlock DockPanel.Dock="Right" Text="{Binding Cart.Subtotal, StringFormat={}{0:C}}" FontSize="17" />
                             <TextBlock Text="Subtotal" Style="{StaticResource Muted}" FontSize="17" />
                         </DockPanel>
-                        <DockPanel Grid.Row="1" Margin="0,4,0,0">
+                        <DockPanel Grid.Row="2" Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Right" Text="{Binding Cart.Tax, StringFormat={}{0:C}}" FontSize="17" />
                             <TextBlock Text="Tax" Style="{StaticResource Muted}" FontSize="17" />
                         </DockPanel>
-                        <DockPanel Grid.Row="2" Margin="0,10,0,0">
+                        <DockPanel Grid.Row="3" Margin="0,10,0,0">
                             <TextBlock DockPanel.Dock="Right" Text="{Binding Cart.Total, StringFormat={}{0:C}}" FontSize="36" FontWeight="Black"
                                        Foreground="{StaticResource TextBrush}" />
                             <TextBlock Text="TOTAL" FontSize="22" FontWeight="Bold" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" />
@@ -317,5 +336,9 @@
         <ContentControl Grid.RowSpan="2" Content="{Binding Payment}" Focusable="False" />
         <ContentControl Grid.RowSpan="2" Content="{Binding QuantityEntry}" Focusable="False" />
         <ContentControl Grid.RowSpan="2" Content="{Binding CustomerLookup}" Focusable="False" />
+        <ContentControl Grid.RowSpan="2" Content="{Binding HeldSales}" Focusable="False" />
+        <ContentControl Grid.RowSpan="2" Content="{Binding Returns}" Focusable="False" />
+        <ContentControl Grid.RowSpan="2" Content="{Binding DiscountEntry}" Focusable="False" />
+        <ContentControl Grid.RowSpan="2" Content="{Binding Shift}" Focusable="False" />
     </Grid>
 </UserControl>

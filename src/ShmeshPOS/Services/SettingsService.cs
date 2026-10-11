@@ -8,7 +8,8 @@ using ShmeshPOS.Security;
 namespace ShmeshPOS.Services;
 
 /// <summary>Receipt printing for one register (settings are kept per terminal name).</summary>
-public sealed record TerminalPrintSettings(string? PrinterName, bool AutoPrint);
+/// <param name="DrawerConnected">A cash drawer is plugged into this register's receipt printer.</param>
+public sealed record TerminalPrintSettings(string? PrinterName, bool AutoPrint, bool DrawerConnected = false);
 
 public interface ISettingsService
 {
@@ -87,10 +88,12 @@ public class SettingsService(
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var (printerKey, autoKey) = PrintKeys(terminal);
-        var values = await ReadAsync(db, [printerKey, autoKey], cancellationToken);
+        var drawerKey = DrawerKey(terminal);
+        var values = await ReadAsync(db, [printerKey, autoKey, drawerKey], cancellationToken);
         return new TerminalPrintSettings(
             values.TryGetValue(printerKey, out var printer) && printer.Length > 0 ? printer : null,
-            values.TryGetValue(autoKey, out var auto) && auto == "true");
+            values.TryGetValue(autoKey, out var auto) && auto == "true",
+            values.TryGetValue(drawerKey, out var drawer) && drawer == "true");
     }
 
     public async Task SavePrintSettingsAsync(string terminal, TerminalPrintSettings settings, CancellationToken cancellationToken = default)
@@ -100,10 +103,13 @@ public class SettingsService(
         var (printerKey, autoKey) = PrintKeys(terminal);
         await WriteAsync(db, printerKey, settings.PrinterName?.Trim() ?? "", cancellationToken);
         await WriteAsync(db, autoKey, settings.AutoPrint ? "true" : "false", cancellationToken);
+        await WriteAsync(db, DrawerKey(terminal), settings.DrawerConnected ? "true" : "false", cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Admin {AdminId} set receipt printer for {Terminal} to {Printer} (auto-print {AutoPrint})",
             admin.Id, terminal, settings.PrinterName ?? "Windows default", settings.AutoPrint);
     }
+
+    private static string DrawerKey(string terminal) => $"printer.{terminal.Trim().ToLowerInvariant()}.drawer";
 
     private static (string Printer, string Auto) PrintKeys(string terminal)
     {
