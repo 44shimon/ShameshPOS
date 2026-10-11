@@ -7,9 +7,12 @@ using ShmeshPOS.Security;
 
 namespace ShmeshPOS.Services;
 
+/// <param name="TrackStock">Count stock for this product. The quantity itself changes only through sales, returns, deliveries and counts.</param>
+/// <param name="ReorderLevel">Show as low on stock at or below this quantity.</param>
 public sealed record ProductInput(
     int Id, string Name, int CategoryId, string? Code, string? Sku, string? Barcode,
-    decimal Price, decimal TaxRate, int SortOrder, bool IsActive, bool ShowOnMainScreen = false);
+    decimal Price, decimal TaxRate, int SortOrder, bool IsActive, bool ShowOnMainScreen = false,
+    bool TrackStock = false, int? ReorderLevel = null);
 
 public sealed record CategoryInput(int Id, string Name, string? Color, int SortOrder, bool IsActive);
 
@@ -69,6 +72,7 @@ public class CatalogAdminService(
         if (decimal.Round(input.Price, 2) != input.Price) throw new PosException("Price can have at most 2 decimal places.");
         if (input.TaxRate is < 0 or >= 1) throw new PosException("Tax rate must be between 0% and 99.999%.");
         if (decimal.Round(input.TaxRate, 5) != input.TaxRate) throw new PosException("Tax rate can have at most 3 decimal places.");
+        if (input.ReorderLevel is < 0 or > StockService.MaxQuantity) throw new PosException("The low-stock level must be a whole number, 0 or more.");
 
         var code = CleanKey(input.Code, 20, "Product code");
         var sku = CleanKey(input.Sku, 50, "SKU");
@@ -124,6 +128,8 @@ public class CatalogAdminService(
         product.SortOrder = input.SortOrder;
         product.IsActive = input.IsActive;
         product.ShowOnMainScreen = input.ShowOnMainScreen;
+        product.TrackStock = input.TrackStock;
+        product.ReorderLevel = input.ReorderLevel;
         product.UpdatedAt = now;
         if (before is not null) changes = DescribeChanges(before, Describe(product));
 
@@ -222,6 +228,8 @@ public class CatalogAdminService(
         ["SortOrder"] = p.SortOrder,
         ["IsActive"] = p.IsActive,
         ["ShowOnMainScreen"] = p.ShowOnMainScreen,
+        ["TrackStock"] = p.TrackStock,
+        ["ReorderLevel"] = p.ReorderLevel,
     };
 
     private static string? DescribeChanges(Dictionary<string, object?> before, Dictionary<string, object?> after)

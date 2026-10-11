@@ -1,0 +1,142 @@
+<UserControl x:Class="ShmeshPOS.Views.ShiftView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ShmeshPOS.Controls">
+    <Grid Background="{StaticResource OverlayBrush}">
+        <Border Style="{StaticResource OverlayCard}" Width="760">
+            <Grid>
+                <!-- ===== Open / close: enter an amount ===== -->
+                <Grid Visibility="{Binding IsReportStep, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="24" />
+                        <ColumnDefinition Width="290" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" />
+                        <TextBlock Text="{Binding Prompt}" Style="{StaticResource Muted}" FontSize="17" TextWrapping="Wrap" Margin="0,10,0,0" />
+
+                        <Border Margin="0,14,0,0" Padding="14,10" CornerRadius="10" Background="{StaticResource SelectionBrush}"
+                                Visibility="{Binding IsCloseStep, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock FontSize="15" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap">
+                                <Run Text="Shift opened" /><Run Text="{Binding OpenShift.OpenedAt, Mode=OneWay, StringFormat={} {0:ddd h:mm tt}}" FontWeight="SemiBold" /><Run Text="{Binding OpenShift.OpenedBy, Mode=OneWay, StringFormat={} by {0}}" /><Run Text="{Binding OpenShift.OpeningFloat, Mode=OneWay, StringFormat='{}, float {0:C}'}" />
+                            </TextBlock>
+                        </Border>
+
+                        <TextBlock Text="CASH IN THE DRAWER" Style="{StaticResource FormLabel}" Margin="0,16,0,4" />
+                        <Border Background="White" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2" CornerRadius="10" Height="68">
+                            <TextBlock Text="{Binding AmountText}" FontSize="36" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Margin="14,0" Foreground="{StaticResource TextBrush}" />
+                        </Border>
+
+                        <StackPanel Visibility="{Binding IsCloseStep, Converter={StaticResource BoolToVisibility}}" Margin="0,14,0,0">
+                            <TextBlock Text="NOTE (OPTIONAL)" Style="{StaticResource FormLabel}" />
+                            <TextBox Style="{StaticResource FormBox}" MaxLength="200" Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" TextAlignment="Left" Margin="0,12,0,0"
+                                   Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibility}}" />
+                    </StackPanel>
+
+                    <DockPanel Grid.Column="2">
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                            <Button Style="{StaticResource SuccessButton}" Margin="5" Height="70" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}">
+                                <TextBlock><Run Text="{Binding ActionText, Mode=OneWay}" /><Run Text="  ⏎" FontSize="18" /></TextBlock>
+                            </Button>
+                            <Button Margin="5" Command="{Binding CancelCommand}">
+                                <Button.Content>
+                                    <TextBlock>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="Cancel" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOpenStep}" Value="True">
+                                                        <Setter Property="Text" Value="Not Now" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Button.Content>
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PosButton}">
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsOpenStep}" Value="True" />
+                                                    <Condition Binding="{Binding CanSkip}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                        <controls:NumericKeypad Command="{Binding KeypadCommand}" ShowDecimal="True" />
+                    </DockPanel>
+                </Grid>
+
+                <!-- ===== Report after closing ===== -->
+                <Grid Visibility="{Binding IsReportStep, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="24" />
+                        <ColumnDefinition Width="380" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" />
+                        <Grid Margin="0,18,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="0,4">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Report.ExpectedCash, StringFormat={}{0:C}}" FontSize="22" FontWeight="Bold" />
+                                <TextBlock Text="Expected" FontSize="19" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <DockPanel Grid.Row="1" Margin="0,4">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Report.CountedCash, StringFormat={}{0:C}}" FontSize="22" FontWeight="Bold" />
+                                <TextBlock Text="Counted" FontSize="19" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <Border Grid.Row="2" Margin="0,10,0,0" Padding="14,10" CornerRadius="10" Background="{StaticResource SelectionBrush}">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Report.Difference, StringFormat={}{0:C}}" FontSize="30" FontWeight="Black" />
+                                    <TextBlock Text="Over (+) / short (−)" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Put the cash away or hand it in with the printed report. Open a new shift before the next sale."
+                                   Style="{StaticResource Muted}" FontSize="16" TextWrapping="Wrap" Margin="0,16,0,0" />
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource SuccessDarkBrush}" Margin="0,12,0,0" />
+                        <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" TextAlignment="Left" Margin="0,8,0,0"
+                                   Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibility}}" />
+                        <UniformGrid Columns="2" Margin="-5,20,-5,0">
+                            <Button Content="Print Report" Style="{StaticResource PrimaryButton}" Margin="5" Command="{Binding PrintCommand}" />
+                            <Button Content="Done" Style="{StaticResource PosButton}" Margin="5" Command="{Binding CancelCommand}" />
+                        </UniformGrid>
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,12" MaxHeight="560">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding ReportLines}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas, Courier New" FontSize="13" xml:space="preserve" Foreground="#1F2937" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <Border Background="#CCFFFFFF" CornerRadius="12" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Saving…" Style="{StaticResource Heading}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

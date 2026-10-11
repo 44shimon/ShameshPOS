@@ -24,6 +24,17 @@ public class Product
 
     /// <summary>Shown as a button on the register's main screen. At most <see cref="Services.CatalogAdminService.MaxMainScreenItems"/> products.</summary>
     public bool ShowOnMainScreen { get; set; }
+
+    /// <summary>Count this product's stock: sales take it out, deliveries and returns put it back.</summary>
+    public bool TrackStock { get; set; }
+
+    /// <summary>Quantity on hand when <see cref="TrackStock"/> is on. Can go below zero if more is sold than was counted.</summary>
+    public int StockQuantity { get; set; }
+
+    /// <summary>Show the product as low on stock at or below this quantity. Null: no alert.</summary>
+    public int? ReorderLevel { get; set; }
+
+    public bool IsLowOnStock => TrackStock && StockQuantity <= (ReorderLevel ?? 0);
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

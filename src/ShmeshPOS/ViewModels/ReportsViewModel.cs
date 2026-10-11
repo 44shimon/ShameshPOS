@@ -16,22 +16,43 @@ public partial class SaleRowViewModel(SaleListItem sale) : ObservableObject
     private bool _isSelected;
 }
 
+public partial class ShiftRowViewModel(ShiftListItem shift) : ObservableObject
+{
+    public ShiftListItem Shift { get; } = shift;
+
+    /// <summary>"Over $1.25", "Short $0.50", "Balanced", or "Open".</summary>
+    public string DrawerText => Shift.Difference switch
+    {
+        null => "Open",
+        > 0 and var d => $"Over {d:C}",
+        < 0 and var d => $"Short {-d:C}",
+        _ => "Balanced",
+    };
+
+    public bool IsOff => Shift.Difference is { } d && d != 0;
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
 /// <summary>
 /// Reports (F3 → Reports): totals for a period (the end-of-day report when the period is one day),
-/// and the list of sales with receipt preview and reprint.
+/// the list of sales with receipt preview and reprint, and the shifts with their drawer counts.
 /// </summary>
 public partial class ReportsViewModel : ObservableObject, IKeyboardHandler
 {
     private readonly IReportService _reports;
     private readonly IReceiptService _receipts;
+    private readonly IShiftService _shiftService;
     private readonly ISessionService _session;
     private readonly ILogger<ReportsViewModel> _logger;
 
-    public ReportsViewModel(IReportService reports, IReceiptService receipts, ISessionService session,
+    public ReportsViewModel(IReportService reports, IReceiptService receipts, IShiftService shifts, ISessionService session,
         IOptions<PosOptions> options, ILogger<ReportsViewModel> logger)
     {
         _reports = reports;
         _receipts = receipts;
+        _shiftService = shifts;
         _session = session;
         _logger = logger;
         StoreName = options.Value.StoreName;
@@ -50,7 +71,7 @@ public partial class ReportsViewModel : ObservableObject, IKeyboardHandler
     [ObservableProperty] private string _preset = "Today";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSummaryTab), nameof(IsSalesTab))]
+    [NotifyPropertyChangedFor(nameof(IsSummaryTab), nameof(IsSalesTab), nameof(IsShiftsTab))]
     private string _tab = "Summary";
 
     [ObservableProperty]
@@ -65,12 +86,22 @@ public partial class ReportsViewModel : ObservableObject, IKeyboardHandler
     public bool HasSelectedSale => SelectedSale is not null;
     [ObservableProperty] private IReadOnlyList<string> _receiptLines = [];
 
+    [ObservableProperty] private IReadOnlyList<ShiftRowViewModel> _shifts = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedShift))]
+    private ShiftRowViewModel? _selectedShift;
+
+    public bool HasSelectedShift => SelectedShift is not null;
+    private ShiftReport? _shiftReport;
+    [ObservableProperty] private IReadOnlyList<string> _shiftLines = [];
+
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private string? _statusMessage;
 
     public bool IsSummaryTab => Tab == "Summary";
     public bool IsSalesTab => Tab == "Sales";
+    public bool IsShiftsTab => Tab == "Shifts";
     public bool HasSales => Summary is { SaleCount: > 0 };
     public string PeriodText => Summary is null ? "" : ReceiptFormatter.Period(Summary);
 
@@ -136,6 +167,9 @@ public partial class ReportsViewModel : ObservableObject, IKeyboardHandler
             var list = await _reports.GetSalesAsync(from, to);
             Sales = list.Select(s => new SaleRowViewModel(s)).ToList();
             await SelectSaleAsync(Sales.FirstOrDefault());
+            var shifts = await _shiftService.ListAsync(from, to);
+            Shifts = shifts.Select(s => new ShiftRowViewModel(s)).ToList();
+            await SelectShiftAsync(Shifts.FirstOrDefault());
         }
         catch (PosException ex)
         {
@@ -168,6 +202,33 @@ public partial class ReportsViewModel : ObservableObject, IKeyboardHandler
             _logger.LogError(ex, "Loading receipt {SaleId} failed", row.Sale.Id);
             ReceiptLines = ["Unable to load this receipt."];
         }
+    }
+
+    [RelayCommand]
+    private async Task SelectShiftAsync(ShiftRowViewModel? row)
+    {
+        foreach (var r in Shifts) r.IsSelected = r == row;
+        SelectedShift = row;
+        _shiftReport = null;
+        ShiftLines = [];
+        if (row is null) return;
+        try
+        {
+            _shiftReport = await _shiftService.GetReportAsync(row.Shift.Id);
+            ShiftLines = _receipts.FormatShift(_shiftReport);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Loading shift report {ShiftId} failed", row.Shift.Id);
+            ShiftLines = ["Unable to load this shift."];
+        }
+    }
+
+    [RelayCommand]
+    private async Task PrintShiftAsync()
+    {
+        if (_shiftReport is not { } report || IsBusy) return;
+        await RunPrintAsync(() => _receipts.PrintShiftAsync(report), $"Shift {report.ShiftId} report sent to the printer.");
     }
 
     [RelayCommand]

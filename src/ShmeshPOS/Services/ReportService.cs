@@ -24,19 +24,35 @@ public sealed record SalesSummary(
     decimal AccountCharges,
     IReadOnlyList<NamedTotal> AccountPaymentsByMethod,
     decimal CashSales,
-    decimal CashAccountPayments)
+    decimal CashAccountPayments,
+    IReadOnlyList<NamedTotal>? RefundsByMethod = null,
+    decimal CashRefunds = 0m,
+    decimal Discounts = 0m)
 {
     public decimal AverageSale => SaleCount == 0 ? 0m : SaleCalculator.RoundMoney(Total / SaleCount);
     public decimal AccountPaymentsTotal => AccountPaymentsByMethod.Sum(p => p.Amount);
 
-    /// <summary>Cash that should have gone into the drawer: cash sales plus cash paid onto accounts (opening float not included).</summary>
-    public decimal ExpectedCash => CashSales + CashAccountPayments;
+    /// <summary>Refunds made in the period (for sales from any date), by how the money went back.</summary>
+    public IReadOnlyList<NamedTotal> Refunds => RefundsByMethod ?? [];
+    public int RefundCount => Refunds.Sum(r => r.Count);
+    public decimal RefundTotal => Refunds.Sum(r => r.Amount);
+
+    /// <summary>What the items would have sold for without discounts, before tax.</summary>
+    public decimal GrossSales => Subtotal + Discounts;
+
+    /// <summary>Sales less refunds.</summary>
+    public decimal NetSales => Total - RefundTotal;
+
+    /// <summary>Cash that should be in the drawer: cash sales plus cash paid onto accounts, less cash refunds (opening float not included).</summary>
+    public decimal ExpectedCash => CashSales + CashAccountPayments - CashRefunds;
 }
 
 public sealed record SaleListItem(
     long Id, string ReceiptNumber, DateTime Time, string Cashier, string? Customer, decimal Total, string PaidBy, string Terminal);
 
-public sealed record ReceiptLine(string Name, int Quantity, decimal UnitPrice, decimal LineTotal);
+/// <param name="LineTotal">Quantity × unit price, as printed on the item line.</param>
+/// <param name="Discount">Taken off this line, printed underneath it (as a positive amount).</param>
+public sealed record ReceiptLine(string Name, int Quantity, decimal UnitPrice, decimal LineTotal, decimal Discount = 0m);
 
 public sealed record ReceiptPayment(string Method, decimal Amount, decimal? CashReceived, decimal? Change);
 
@@ -53,7 +69,8 @@ public sealed record ReceiptData(
     decimal Subtotal,
     decimal Tax,
     decimal Total,
-    IReadOnlyList<ReceiptPayment> Payments);
+    IReadOnlyList<ReceiptPayment> Payments,
+    decimal SaleDiscount = 0m);
 
 public interface IReportService
 {
@@ -86,7 +103,11 @@ public class ReportService(IDbContextFactory<PosDbContext> dbFactory, ISessionSe
 
         var totals = await sales
             .GroupBy(_ => 1)
-            .Select(g => new { Count = g.Count(), Subtotal = g.Sum(s => s.Subtotal), Tax = g.Sum(s => s.Tax), Total = g.Sum(s => s.Total) })
+            .Select(g => new
+            {
+                Count = g.Count(), Subtotal = g.Sum(s => s.Subtotal), Tax = g.Sum(s => s.Tax), Total = g.Sum(s => s.Total),
+                Discount = g.Sum(s => s.Discount),
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         var byMethod = await db.Payments.AsNoTracking()
@@ -124,6 +145,13 @@ public class ReportService(IDbContextFactory<PosDbContext> dbFactory, ISessionSe
             .OrderBy(x => x.SortOrder)
             .ToListAsync(cancellationToken);
 
+        var refunds = await db.Refunds.AsNoTracking()
+            .Where(r => r.CreatedAt >= fromUtc && r.CreatedAt < toUtc)
+            .GroupBy(r => new { r.PaymentMethod!.Name, r.PaymentMethod.Kind, r.PaymentMethod.SortOrder })
+            .Select(g => new { g.Key.Name, g.Key.Kind, g.Key.SortOrder, Count = g.Count(), Amount = g.Sum(r => r.Total) })
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync(cancellationToken);
+
         return new SalesSummary(
             from, to,
             totals?.Count ?? 0,
@@ -137,7 +165,10 @@ public class ReportService(IDbContextFactory<PosDbContext> dbFactory, ISessionSe
             accountCharges,
             accountPayments.Select(p => new NamedTotal(p.Name, p.Count, p.Amount)).ToList(),
             byMethod.Where(m => m.Kind == PaymentKind.Cash).Sum(m => m.Amount),
-            accountPayments.Where(p => p.Kind == PaymentKind.Cash).Sum(p => p.Amount));
+            accountPayments.Where(p => p.Kind == PaymentKind.Cash).Sum(p => p.Amount),
+            refunds.Select(r => new NamedTotal(r.Name, r.Count, r.Amount)).ToList(),
+            refunds.Where(r => r.Kind == PaymentKind.Cash).Sum(r => r.Amount),
+            totals?.Discount ?? 0m);
     }
 
     public async Task<IReadOnlyList<SaleListItem>> GetSalesAsync(DateTime from, DateTime to, int max = 1000, CancellationToken cancellationToken = default)
@@ -158,7 +189,7 @@ public class ReportService(IDbContextFactory<PosDbContext> dbFactory, ISessionSe
             .ToListAsync(cancellationToken);
 
         return rows.Select(r => new SaleListItem(r.Id, r.ReceiptNumber, ToLocal(r.CreatedAt), r.Cashier, r.Customer, r.Total,
-            string.Join(", ", r.Methods), r.TerminalName)).ToList();
+            string.Join(", ", r.Methods.Distinct()), r.TerminalName)).ToList();
     }
 
     public async Task<ReceiptData> GetReceiptAsync(long saleId, CancellationToken cancellationToken = default)
@@ -188,12 +219,15 @@ public class ReportService(IDbContextFactory<PosDbContext> dbFactory, ISessionSe
             sale.Customer?.Name,
             sale.Customer?.AccountNumber,
             balanceAfter,
-            sale.Items.OrderBy(i => i.Id).Select(i => new ReceiptLine(i.ProductName, i.Quantity, i.UnitPrice, i.LineTotal)).ToList(),
+            sale.Items.OrderBy(i => i.Id)
+                .Select(i => new ReceiptLine(i.ProductName, i.Quantity, i.UnitPrice, SaleCalculator.LineTotal(i.UnitPrice, i.Quantity), i.Discount))
+                .ToList(),
             sale.Subtotal,
             sale.Tax,
             sale.Total,
             sale.Payments.OrderBy(p => p.Id)
-                .Select(p => new ReceiptPayment(p.PaymentMethod?.Name ?? "", p.Amount, p.CashReceived, p.ChangeGiven)).ToList());
+                .Select(p => new ReceiptPayment(p.PaymentMethod?.Name ?? "", p.Amount, p.CashReceived, p.ChangeGiven)).ToList(),
+            sale.Items.Sum(i => i.SaleDiscountShare));
     }
 
     private (DateTime FromUtc, DateTime ToUtc) ToUtcRange(DateTime from, DateTime to)

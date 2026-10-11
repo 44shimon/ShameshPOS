@@ -10,6 +10,9 @@ public enum CustomerTransactionType
 
     /// <summary>A manual correction by an administrator.</summary>
     Adjustment,
+
+    /// <summary>A sale that was charged to the account was returned, so the amount comes off the balance.</summary>
+    Refund,
 }
 
 /// <summary>
@@ -33,6 +36,10 @@ public class CustomerTransaction
     /// <summary>The sale that was charged, for <see cref="CustomerTransactionType.Charge"/>.</summary>
     public long? SaleId { get; set; }
     public Sale? Sale { get; set; }
+
+    /// <summary>The refund that credited the account, for <see cref="CustomerTransactionType.Refund"/>.</summary>
+    public long? RefundId { get; set; }
+    public Refund? Refund { get; set; }
 
     /// <summary>How the customer paid, for <see cref="CustomerTransactionType.Payment"/>.</summary>
     public int? PaymentMethodId { get; set; }

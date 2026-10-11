@@ -15,6 +15,9 @@ public interface IDialogService
     /// Enter and Esc both choose the main button. Returns true only when the side action was pressed.
     /// </summary>
     Task<bool> ShowMessageWithActionAsync(string title, string message, string okText, string actionText);
+
+    /// <summary>Asks for a short piece of text. Returns null when cancelled (the text may be empty).</summary>
+    Task<string?> PromptAsync(string title, string message, string confirmText, string cancelText = "Cancel", int maxLength = 60);
 }
 
 public partial class DialogViewModel(string title, string message, string confirmText, string? cancelText, bool escapeConfirms = false) : ObservableObject
@@ -30,6 +33,13 @@ public partial class DialogViewModel(string title, string message, string confir
 
     /// <summary>Null for a message box with a single button.</summary>
     public string? CancelText { get; } = cancelText;
+
+    /// <summary>Shows a text box (see <see cref="IDialogService.PromptAsync"/>).</summary>
+    public bool HasInput { get; init; }
+    public int InputMaxLength { get; init; } = 60;
+
+    [ObservableProperty]
+    private string _inputText = "";
 
     public Task<bool> Result => _result.Task;
 
@@ -59,6 +69,12 @@ public partial class DialogService : ObservableObject, IDialogService, IKeyboard
 
     public async Task<bool> ShowMessageWithActionAsync(string title, string message, string okText, string actionText) =>
         !await ShowAsync(new DialogViewModel(title, message, okText, actionText, escapeConfirms: true));
+
+    public async Task<string?> PromptAsync(string title, string message, string confirmText, string cancelText = "Cancel", int maxLength = 60)
+    {
+        var dialog = new DialogViewModel(title, message, confirmText, cancelText) { HasInput = true, InputMaxLength = maxLength };
+        return await ShowAsync(dialog) ? dialog.InputText.Trim() : null;
+    }
 
     private async Task<bool> ShowAsync(DialogViewModel dialog)
     {
@@ -92,7 +108,7 @@ public partial class DialogService : ObservableObject, IDialogService, IKeyboard
                 dialog.CancelCommand.Execute(null);
                 break;
         }
-        // While a dialog is open, nothing underneath should react to the keyboard.
-        return true;
+        // While a dialog is open, nothing underneath should react to the keyboard; typing goes to its text box.
+        return key is Key.Enter or Key.Escape || !(dialog.HasInput && textInputFocused);
     }
 }

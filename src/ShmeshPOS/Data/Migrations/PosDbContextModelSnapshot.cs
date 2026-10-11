@@ -173,6 +173,10 @@ namespace ShmeshPOS.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("payment_method_id");
 
+                    b.Property<long?>("RefundId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("refund_id");
+
                     b.Property<long?>("SaleId")
                         .HasColumnType("bigint")
                         .HasColumnName("sale_id");
@@ -198,6 +202,9 @@ namespace ShmeshPOS.Data.Migrations
                     b.HasIndex("PaymentMethodId")
                         .HasDatabaseName("ix_customer_transactions_payment_method_id");
 
+                    b.HasIndex("RefundId")
+                        .HasDatabaseName("ix_customer_transactions_refund_id");
+
                     b.HasIndex("SaleId")
                         .HasDatabaseName("ix_customer_transactions_sale_id");
 
@@ -208,6 +215,134 @@ namespace ShmeshPOS.Data.Migrations
                         .HasDatabaseName("ix_customer_transactions_customer_id_created_at");
 
                     b.ToTable("customer_transactions", (string)null);
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.HeldSale", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CashierId")
+                        .HasColumnType("integer")
+                        .HasColumnName("cashier_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("label");
+
+                    b.Property<string>("SaleDiscountKind")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("sale_discount_kind");
+
+                    b.Property<decimal?>("SaleDiscountValue")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("sale_discount_value");
+
+                    b.Property<string>("TerminalName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("terminal_name");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("total");
+
+                    b.HasKey("Id")
+                        .HasName("pk_held_sales");
+
+                    b.HasIndex("CashierId")
+                        .HasDatabaseName("ix_held_sales_cashier_id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_held_sales_created_at");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_held_sales_customer_id");
+
+                    b.ToTable("held_sales", (string)null);
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.HeldSaleItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DiscountKind")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("discount_kind");
+
+                    b.Property<decimal?>("DiscountValue")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("discount_value");
+
+                    b.Property<int>("HeldSaleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("held_sale_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("product_name");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(6, 5)
+                        .HasColumnType("numeric(6,5)")
+                        .HasColumnName("tax_rate");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("unit_price");
+
+                    b.HasKey("Id")
+                        .HasName("pk_held_sale_items");
+
+                    b.HasIndex("HeldSaleId")
+                        .HasDatabaseName("ix_held_sale_items_held_sale_id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_held_sale_items_product_id");
+
+                    b.ToTable("held_sale_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_held_sale_items_quantity_positive", "quantity > 0");
+                        });
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.Payment", b =>
@@ -348,6 +483,10 @@ namespace ShmeshPOS.Data.Migrations
                         .HasColumnType("numeric(10,2)")
                         .HasColumnName("price");
 
+                    b.Property<int?>("ReorderLevel")
+                        .HasColumnType("integer")
+                        .HasColumnName("reorder_level");
+
                     b.Property<bool>("ShowOnMainScreen")
                         .HasColumnType("boolean")
                         .HasColumnName("show_on_main_screen");
@@ -361,10 +500,18 @@ namespace ShmeshPOS.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("sort_order");
 
+                    b.Property<int>("StockQuantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("stock_quantity");
+
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(6, 5)
                         .HasColumnType("numeric(6,5)")
                         .HasColumnName("tax_rate");
+
+                    b.Property<bool>("TrackStock")
+                        .HasColumnType("boolean")
+                        .HasColumnName("track_stock");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -402,6 +549,8 @@ namespace ShmeshPOS.Data.Migrations
                         {
                             t.HasCheckConstraint("ck_products_price_non_negative", "price >= 0");
 
+                            t.HasCheckConstraint("ck_products_reorder_level_non_negative", "reorder_level IS NULL OR reorder_level >= 0");
+
                             t.HasCheckConstraint("ck_products_tax_rate_range", "tax_rate >= 0 AND tax_rate < 1");
                         });
                 });
@@ -420,6 +569,156 @@ namespace ShmeshPOS.Data.Migrations
                         .HasName("pk_receipt_sequences");
 
                     b.ToTable("receipt_sequences", (string)null);
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.Refund", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CashierId")
+                        .HasColumnType("integer")
+                        .HasColumnName("cashier_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("OriginalSaleId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("original_sale_id");
+
+                    b.Property<int>("PaymentMethodId")
+                        .HasColumnType("integer")
+                        .HasColumnName("payment_method_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RefundNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("refund_number");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("subtotal");
+
+                    b.Property<decimal>("Tax")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("tax");
+
+                    b.Property<string>("TerminalName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("terminal_name");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("total");
+
+                    b.HasKey("Id")
+                        .HasName("pk_refunds");
+
+                    b.HasIndex("CashierId")
+                        .HasDatabaseName("ix_refunds_cashier_id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_refunds_created_at");
+
+                    b.HasIndex("OriginalSaleId")
+                        .HasDatabaseName("ix_refunds_original_sale_id");
+
+                    b.HasIndex("PaymentMethodId")
+                        .HasDatabaseName("ix_refunds_payment_method_id");
+
+                    b.HasIndex("RefundNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_refunds_refund_number");
+
+                    b.ToTable("refunds", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_refunds_total", "total = subtotal + tax");
+
+                            t.HasCheckConstraint("ck_refunds_total_non_negative", "total >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.RefundItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("LineTotal")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("line_total");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("product_name");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<long>("RefundId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("refund_id");
+
+                    b.Property<long>("SaleItemId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sale_item_id");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("tax_amount");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(6, 5)
+                        .HasColumnType("numeric(6,5)")
+                        .HasColumnName("tax_rate");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("unit_price");
+
+                    b.HasKey("Id")
+                        .HasName("pk_refund_items");
+
+                    b.HasIndex("RefundId")
+                        .HasDatabaseName("ix_refund_items_refund_id");
+
+                    b.HasIndex("SaleItemId")
+                        .HasDatabaseName("ix_refund_items_sale_item_id");
+
+                    b.ToTable("refund_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_refund_items_quantity_positive", "quantity > 0");
+                        });
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.Sale", b =>
@@ -442,6 +741,11 @@ namespace ShmeshPOS.Data.Migrations
                     b.Property<int?>("CustomerId")
                         .HasColumnType("integer")
                         .HasColumnName("customer_id");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("discount");
 
                     b.Property<string>("ReceiptNumber")
                         .IsRequired()
@@ -494,6 +798,8 @@ namespace ShmeshPOS.Data.Migrations
 
                     b.ToTable("sales", null, t =>
                         {
+                            t.HasCheckConstraint("ck_sales_discount_non_negative", "discount >= 0");
+
                             t.HasCheckConstraint("ck_sales_total", "total = subtotal + tax");
                         });
                 });
@@ -506,6 +812,11 @@ namespace ShmeshPOS.Data.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("discount");
 
                     b.Property<decimal>("LineTotal")
                         .HasPrecision(12, 2)
@@ -525,6 +836,11 @@ namespace ShmeshPOS.Data.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer")
                         .HasColumnName("quantity");
+
+                    b.Property<decimal>("SaleDiscountShare")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("sale_discount_share");
 
                     b.Property<long>("SaleId")
                         .HasColumnType("bigint")
@@ -556,8 +872,159 @@ namespace ShmeshPOS.Data.Migrations
 
                     b.ToTable("sale_items", null, t =>
                         {
+                            t.HasCheckConstraint("ck_sale_items_discounts", "discount >= 0 AND sale_discount_share >= 0 AND line_total >= 0");
+
                             t.HasCheckConstraint("ck_sale_items_quantity_positive", "quantity > 0");
                         });
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.Shift", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<int?>("ClosedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("closed_by_id");
+
+                    b.Property<decimal?>("CountedCash")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("counted_cash");
+
+                    b.Property<decimal?>("ExpectedCash")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("expected_cash");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at");
+
+                    b.Property<int>("OpenedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("opened_by_id");
+
+                    b.Property<decimal>("OpeningFloat")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("opening_float");
+
+                    b.Property<string>("TerminalName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("terminal_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_shifts");
+
+                    b.HasIndex("ClosedById")
+                        .HasDatabaseName("ix_shifts_closed_by_id");
+
+                    b.HasIndex("OpenedAt")
+                        .HasDatabaseName("ix_shifts_opened_at");
+
+                    b.HasIndex("OpenedById")
+                        .HasDatabaseName("ix_shifts_opened_by_id");
+
+                    b.HasIndex("TerminalName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_shifts_one_open_per_terminal")
+                        .HasFilter("closed_at IS NULL");
+
+                    b.ToTable("shifts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_shifts_closed_complete", "(closed_at IS NULL) = (counted_cash IS NULL)");
+
+                            t.HasCheckConstraint("ck_shifts_counted_cash_non_negative", "counted_cash IS NULL OR counted_cash >= 0");
+
+                            t.HasCheckConstraint("ck_shifts_opening_float_non_negative", "opening_float >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.StockMovement", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Change")
+                        .HasColumnType("integer")
+                        .HasColumnName("change");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("QuantityAfter")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity_after");
+
+                    b.Property<long?>("RefundId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("refund_id");
+
+                    b.Property<long?>("SaleId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sale_id");
+
+                    b.Property<string>("TerminalName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("terminal_name");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_movements");
+
+                    b.HasIndex("RefundId")
+                        .HasDatabaseName("ix_stock_movements_refund_id");
+
+                    b.HasIndex("SaleId")
+                        .HasDatabaseName("ix_stock_movements_sale_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_stock_movements_user_id");
+
+                    b.HasIndex("ProductId", "CreatedAt")
+                        .HasDatabaseName("ix_stock_movements_product_id_created_at");
+
+                    b.ToTable("stock_movements", (string)null);
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.StoreSetting", b =>
@@ -649,6 +1116,12 @@ namespace ShmeshPOS.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_customer_transactions_payment_methods_payment_method_id");
 
+                    b.HasOne("ShmeshPOS.Models.Refund", "Refund")
+                        .WithMany()
+                        .HasForeignKey("RefundId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_customer_transactions_refunds_refund_id");
+
                     b.HasOne("ShmeshPOS.Models.Sale", "Sale")
                         .WithMany()
                         .HasForeignKey("SaleId")
@@ -666,9 +1139,52 @@ namespace ShmeshPOS.Data.Migrations
 
                     b.Navigation("PaymentMethod");
 
+                    b.Navigation("Refund");
+
                     b.Navigation("Sale");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.HeldSale", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.User", "Cashier")
+                        .WithMany()
+                        .HasForeignKey("CashierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_held_sales_users_cashier_id");
+
+                    b.HasOne("ShmeshPOS.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_held_sales_customers_customer_id");
+
+                    b.Navigation("Cashier");
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.HeldSaleItem", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.HeldSale", "HeldSale")
+                        .WithMany("Items")
+                        .HasForeignKey("HeldSaleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_held_sale_items_held_sales_held_sale_id");
+
+                    b.HasOne("ShmeshPOS.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_held_sale_items_products_product_id");
+
+                    b.Navigation("HeldSale");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.Payment", b =>
@@ -702,6 +1218,57 @@ namespace ShmeshPOS.Data.Migrations
                         .HasConstraintName("fk_products_categories_category_id");
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.Refund", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.User", "Cashier")
+                        .WithMany()
+                        .HasForeignKey("CashierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_refunds_users_cashier_id");
+
+                    b.HasOne("ShmeshPOS.Models.Sale", "OriginalSale")
+                        .WithMany()
+                        .HasForeignKey("OriginalSaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_refunds_sales_original_sale_id");
+
+                    b.HasOne("ShmeshPOS.Models.PaymentMethod", "PaymentMethod")
+                        .WithMany()
+                        .HasForeignKey("PaymentMethodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_refunds_payment_methods_payment_method_id");
+
+                    b.Navigation("Cashier");
+
+                    b.Navigation("OriginalSale");
+
+                    b.Navigation("PaymentMethod");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.RefundItem", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.Refund", "Refund")
+                        .WithMany("Items")
+                        .HasForeignKey("RefundId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_refund_items_refunds_refund_id");
+
+                    b.HasOne("ShmeshPOS.Models.SaleItem", "SaleItem")
+                        .WithMany()
+                        .HasForeignKey("SaleItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_refund_items_sale_items_sale_item_id");
+
+                    b.Navigation("Refund");
+
+                    b.Navigation("SaleItem");
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.Sale", b =>
@@ -745,9 +1312,76 @@ namespace ShmeshPOS.Data.Migrations
                     b.Navigation("Sale");
                 });
 
+            modelBuilder.Entity("ShmeshPOS.Models.Shift", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.User", "ClosedBy")
+                        .WithMany()
+                        .HasForeignKey("ClosedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_shifts_users_closed_by_id");
+
+                    b.HasOne("ShmeshPOS.Models.User", "OpenedBy")
+                        .WithMany()
+                        .HasForeignKey("OpenedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_shifts_users_opened_by_id");
+
+                    b.Navigation("ClosedBy");
+
+                    b.Navigation("OpenedBy");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.StockMovement", b =>
+                {
+                    b.HasOne("ShmeshPOS.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_movements_products_product_id");
+
+                    b.HasOne("ShmeshPOS.Models.Refund", "Refund")
+                        .WithMany()
+                        .HasForeignKey("RefundId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_stock_movements_refunds_refund_id");
+
+                    b.HasOne("ShmeshPOS.Models.Sale", "Sale")
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_stock_movements_sales_sale_id");
+
+                    b.HasOne("ShmeshPOS.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_movements_users_user_id");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Refund");
+
+                    b.Navigation("Sale");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ShmeshPOS.Models.Category", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.HeldSale", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ShmeshPOS.Models.Refund", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("ShmeshPOS.Models.Sale", b =>

@@ -37,9 +37,13 @@ public static class ReceiptFormatter
                 lines.Add(Fit(item.Name, width));
                 lines.Add(Pair($"  {item.Quantity} x {Money(item.UnitPrice)}", amount, width));
             }
+            // The discount reduces what the line is worth: shown negative on a sale, positive on a refund slip.
+            if (item.Discount != 0)
+                lines.Add(Pair("  Discount", Money(item.LineTotal < 0 ? item.Discount : -item.Discount), width));
         }
 
         lines.Add(new string('-', width));
+        if (r.SaleDiscount != 0) lines.Add(Pair("Discount on sale", Money(-r.SaleDiscount), width));
         lines.Add(Pair("Subtotal", Money(r.Subtotal), width));
         if (r.Tax != 0) lines.Add(Pair("Tax", Money(r.Tax), width));
         lines.Add(Pair("TOTAL", Money(r.Total), width));
@@ -74,12 +78,23 @@ public static class ReceiptFormatter
 
         lines.Add(Pair("Sales", s.SaleCount.ToString(CultureInfo.CurrentCulture), width));
         lines.Add(Pair("Items sold", s.ItemsSold.ToString(CultureInfo.CurrentCulture), width));
+        if (s.Discounts != 0)
+        {
+            lines.Add(Pair("Gross sales", Money(s.GrossSales), width));
+            lines.Add(Pair("Discounts", Money(-s.Discounts), width));
+        }
         lines.Add(Pair("Subtotal", Money(s.Subtotal), width));
         lines.Add(Pair("Tax", Money(s.Tax), width));
         lines.Add(Pair("TOTAL SALES", Money(s.Total), width));
         lines.Add(Pair("Average sale", Money(s.AverageSale), width));
+        if (s.RefundCount > 0)
+        {
+            lines.Add(Pair($"Refunds ({s.RefundCount})", Money(-s.RefundTotal), width));
+            lines.Add(Pair("NET SALES", Money(s.NetSales), width));
+        }
 
         Section(lines, "PAYMENTS", s.ByPaymentMethod, width);
+        Section(lines, "REFUNDS", s.Refunds, width);
         if (s.AccountCharges != 0 || s.AccountPaymentsByMethod.Count > 0)
         {
             lines.Add("");
@@ -93,6 +108,7 @@ public static class ReceiptFormatter
         lines.Add("CASH DRAWER");
         lines.Add(Pair("Cash sales", Money(s.CashSales), width));
         if (s.CashAccountPayments != 0) lines.Add(Pair("Cash paid on accounts", Money(s.CashAccountPayments), width));
+        if (s.CashRefunds != 0) lines.Add(Pair("Cash refunds", Money(-s.CashRefunds), width));
         lines.Add(Pair("Expected cash", Money(s.ExpectedCash), width));
         lines.Add("(plus the opening float)");
 
@@ -104,6 +120,51 @@ public static class ReceiptFormatter
             lines.Add("TOP ITEMS");
             foreach (var p in s.TopProducts)
                 lines.Add(Pair($"{p.Quantity} x {p.Name}", Money(p.Revenue), width));
+        }
+
+        lines.Add(new string('=', width));
+        lines.Add(Fit($"Printed {printedAt.ToString("g", CultureInfo.CurrentCulture)} by {printedBy}", width));
+        return lines;
+    }
+
+    /// <summary>Shift (drawer) report, printed when a shift closes and from Reports → Shifts.</summary>
+    public static IReadOnlyList<string> Shift(ShiftReport s, string storeName, string printedBy, DateTime printedAt, int width = Width)
+    {
+        var lines = new List<string>();
+        lines.AddRange(Center(storeName, width));
+        lines.AddRange(Center(s.IsOpen ? "SHIFT REPORT (OPEN)" : "SHIFT REPORT", width));
+        lines.AddRange(Center($"{s.Terminal} - shift {s.ShiftId}", width));
+        lines.Add(new string('=', width));
+        lines.Add(Pair("Opened", s.OpenedAt.ToString("g", CultureInfo.CurrentCulture), width));
+        lines.Add(Pair("  by", s.OpenedBy, width));
+        if (s.ClosedAt is { } closed)
+        {
+            lines.Add(Pair("Closed", closed.ToString("g", CultureInfo.CurrentCulture), width));
+            lines.Add(Pair("  by", s.ClosedBy ?? "", width));
+        }
+
+        lines.Add("");
+        lines.Add(Pair("Sales", s.SaleCount.ToString(CultureInfo.CurrentCulture), width));
+        lines.Add(Pair("TOTAL SALES", Money(s.SalesTotal), width));
+        Section(lines, "PAYMENTS", s.ByPaymentMethod, width);
+
+        lines.Add("");
+        lines.Add("CASH DRAWER");
+        lines.Add(Pair("Opening float", Money(s.OpeningFloat), width));
+        lines.Add(Pair("Cash sales", Money(s.CashSales), width));
+        if (s.CashAccountPayments != 0) lines.Add(Pair("Cash paid on accounts", Money(s.CashAccountPayments), width));
+        if (s.CashRefunds != 0) lines.Add(Pair("Cash refunds", Money(-s.CashRefunds), width));
+        lines.Add(Pair(s.IsOpen ? "Expected so far" : "Expected cash", Money(s.ExpectedCash), width));
+        if (s.CountedCash is { } counted)
+        {
+            lines.Add(Pair("Counted cash", Money(counted), width));
+            var difference = s.Difference ?? 0m;
+            lines.Add(Pair(difference switch { > 0 => "OVER", < 0 => "SHORT", _ => "Difference" }, Money(difference), width));
+        }
+        if (s.Note is { Length: > 0 } note)
+        {
+            lines.Add("");
+            lines.AddRange(Wrap($"Note: {note}", width));
         }
 
         lines.Add(new string('=', width));

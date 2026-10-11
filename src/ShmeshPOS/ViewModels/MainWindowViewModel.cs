@@ -86,6 +86,7 @@ public partial class MainWindowViewModel(
         pos.AdministrationRequested += async (_, _) => await ShowAdministrationAsync(pos);
         pos.ReportsRequested += async (_, _) => await ShowReportsAsync(pos);
         CurrentView = pos;
+        await pos.CheckShiftAsync();
     }
 
     /// <summary>Opens the back office over the register. The POS view model (and its cart) is kept and restored on return.</summary>

@@ -8,7 +8,8 @@ WPF on .NET 9, MVVM, PostgreSQL through EF Core + Npgsql.
 ```
 ShmeshPOS.sln
 src/ShmeshPOS/
-  Models/            Entities (User, Category, Product, Sale, SaleItem, Payment, PaymentMethod, ReceiptSequence)
+  Models/            Entities (User, Category, Product, Sale, SaleItem, Payment, PaymentMethod, ReceiptSequence,
+                     Customer, HeldSale, Refund, Shift, StockMovement)
   Data/              PosDbContext, entity configurations, migrations, start-up initializer/seeder
   Security/          PinHasher (PBKDF2), roles → permissions
   Services/          Authentication, Session, Product catalog, Payment methods, Sale (transactional), receipt numbers
@@ -83,12 +84,56 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
 | F2 | Focus search (clears it) |
 | F3 | Menu (↑/↓ + Enter, or the item number; Esc closes) |
 | F4 | Customer: attach a customer to the sale, or take a payment on their account |
+| F6 | Discount on the selected item or the whole sale (administrators) |
 | F8 | Payment |
 | Enter | In search: add exact code/SKU/barcode match, else top result. In payment: complete |
 | Esc | Close overlay / clear search |
 | Delete | Remove selected line (when the search box is empty) |
 | + / − | Change selected line quantity (when the search box is empty) |
 | ↑ / ↓ | Select cart line |
+
+## Hold, retrieve, returns and the cash drawer
+
+- **Hold Sale (F3 → 2):** parks the current sale (items, prices and customer) with an optional note such as a
+  name or table number, and clears the register for the next customer. Held sales are shared by all registers.
+- **Retrieve Sale (F3 → 3):** lists held sales (note, items, total, who held it and where). Retrieve puts it
+  back in the cart; each held sale can only be retrieved once, even if two registers try at the same moment.
+  The register must be empty first.
+- **Returns (F3 → 6, administrators):** scan or type the receipt number, choose how many of each item come
+  back ("Return Everything" for a full refund), choose how the money goes back (the original payment method
+  is offered first; *Charge to Account* credits the customer's account when the sale had one), add a reason,
+  then **Refund**. Nothing can be returned twice: quantities are checked against earlier refunds while the
+  sale is locked. Returning the last of a line gives back exactly what was charged, including tax.
+  Refund numbers are the receipt number plus `-R1`, `-R2`, … A refund slip can be printed.
+- **Reports** show refunds on the day they happen, **net sales** (sales − refunds), and take cash refunds out
+  of the expected drawer cash.
+- **Cash drawer:** if a drawer is plugged into the receipt printer (Administration → Settings, "A cash drawer is
+  plugged into this printer"), it opens for cash sales and cash refunds, and from **F3 → 5 Open Drawer**
+  ("no sale"). Every opening is logged with who and why. "Open Drawer Now" in Settings tests the cable.
+  The signal is the standard ESC/POS pulse (Epson, Star, Bixolon and compatibles).
+
+## Shifts, discounts, split payments and stock
+
+- **Shifts (F3 → 4):** a shift belongs to one register. After logging in, if the register has no open shift,
+  the drawer opens and the cashier counts the **opening float** in. Payments are refused until a shift is open.
+  **Close Shift** asks for the cash in the drawer *without* showing what is expected (a blind count), then
+  shows the **shift report** (Print sends it to the receipt printer): float, cash sales, cash paid onto accounts, cash refunds, expected
+  cash, counted cash and **over / short**. The expected figure is saved when the shift closes, so the report
+  never changes afterwards. The top bar shows "Shift since …", or "No shift open" in yellow.
+- **Discounts (F6 or the Discount… button, administrators):** a percentage or an amount off the selected item
+  or the whole sale. Discounts are shown on the line and in the totals, printed on the receipt, and tax is
+  charged on the discounted price (a whole-sale discount is shared over the lines to the cent). Held sales
+  keep their discounts; a cashier retrieving one gets the full prices back.
+- **Split payments:** in Payment, type an amount below what is due (e.g. $10 cash) and press COMPLETE; that
+  part is taken and the rest stays due, with the next method suggested (cash first, then card). Parts can be
+  removed before the sale is completed. The sale and all its parts are saved together.
+- **Stock (Administration → Products):** tick **Track stock** on the products you want to count and,
+  optionally, a **low-stock level**. Sales take stock out, returns put it back, **Receive** adds a delivery and
+  **Set Count** sets the quantity to what is on the shelf. Each change is in the product's **stock history**
+  with who, when and why. Selling never stops at zero: stock can go negative until the next count.
+  Products at or below their level are marked **Low stock** in the list (search "low stock" to list them).
+- **Reports → Shifts:** every shift in the period with expected and counted cash and over/short; click one to
+  see its report and **Print Shift Report**.
 
 ## Reports (F3 → 7, administrators)
 
@@ -244,5 +289,5 @@ dotnet test
 
 All five phases are built: foundation, selling, payment, administration, and reports/receipts/backups/
 deployment, plus customer accounts, spreadsheet import and the 10-item main screen.
-Possible next steps: held sales, returns/refunds, cash-drawer kick-out and opening float, inventory,
-discounts. The F3 menu lists Hold Sale, Retrieve Sale, Open Drawer and Returns as "not available yet".
+Phase 6 added hold/retrieve, returns and refunds, and the cash drawer. Phase 7 added shifts with opening
+float and blind cash count, discounts, split payments, and stock tracking.

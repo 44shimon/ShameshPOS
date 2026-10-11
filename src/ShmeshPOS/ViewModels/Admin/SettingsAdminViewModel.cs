@@ -42,6 +42,7 @@ public partial class SettingsAdminViewModel : ObservableObject, IAdminSection
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsDirty))] private string _receiptFooter = "";
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsDirty))] private string _printer = DefaultPrinterLabel;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsDirty))] private bool _autoPrint;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsDirty))] private bool _drawerConnected;
 
     [ObservableProperty] private IReadOnlyList<string> _printers = [DefaultPrinterLabel];
 
@@ -76,6 +77,7 @@ public partial class SettingsAdminViewModel : ObservableObject, IAdminSection
                 Printers = [.. Printers, name]; // configured printer that isn't installed right now
             Printer = print.PrinterName ?? DefaultPrinterLabel;
             AutoPrint = print.AutoPrint;
+            DrawerConnected = print.DrawerConnected;
             _saved = Snapshot();
             OnPropertyChanged(nameof(IsDirty));
             RefreshLastBackup();
@@ -108,12 +110,18 @@ public partial class SettingsAdminViewModel : ObservableObject, IAdminSection
             return;
         }
 
+        if (DrawerConnected && PrinterName() is null)
+        {
+            ErrorMessage = "Choose the receipt printer the cash drawer is plugged into (not the Windows default printer).";
+            return;
+        }
+
         IsBusy = true;
         try
         {
             await _settings.SaveDefaultCreditLimitAsync(limit);
             await _settings.SaveReceiptSettingsAsync(ReceiptText());
-            await _settings.SavePrintSettingsAsync(TerminalName, new TerminalPrintSettings(PrinterName(), AutoPrint));
+            await _settings.SavePrintSettingsAsync(TerminalName, new TerminalPrintSettings(PrinterName(), AutoPrint, DrawerConnected));
             DefaultCreditLimitText = limit.ToString("0.00", CultureInfo.CurrentCulture);
             _saved = Snapshot();
             OnPropertyChanged(nameof(IsDirty));
@@ -147,6 +155,28 @@ public partial class SettingsAdminViewModel : ObservableObject, IAdminSection
         {
             _receiptPrinter.Print(ReceiptFormatter.Receipt(sample, ReceiptText()), PrinterName(), "Test receipt");
             StatusMessage = $"Test receipt sent to {Printer}.";
+        }
+        catch (PosException ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Kicks the drawer on the printer currently selected on screen, to check the cable.</summary>
+    [RelayCommand]
+    private void TestDrawer()
+    {
+        ErrorMessage = null;
+        StatusMessage = null;
+        if (PrinterName() is not { } printer)
+        {
+            ErrorMessage = "Choose the receipt printer the cash drawer is plugged into first.";
+            return;
+        }
+        try
+        {
+            _receiptPrinter.OpenDrawer(printer);
+            StatusMessage = $"Open-drawer signal sent to {printer}.";
         }
         catch (PosException ex)
         {
@@ -197,5 +227,5 @@ public partial class SettingsAdminViewModel : ObservableObject, IAdminSection
 
     private string? PrinterName() => Printer == DefaultPrinterLabel || string.IsNullOrWhiteSpace(Printer) ? null : Printer;
 
-    private string Snapshot() => string.Join("|", DefaultCreditLimitText, ReceiptHeader, ReceiptFooter, Printer, AutoPrint);
+    private string Snapshot() => string.Join("|", DefaultCreditLimitText, ReceiptHeader, ReceiptFooter, Printer, AutoPrint, DrawerConnected);
 }

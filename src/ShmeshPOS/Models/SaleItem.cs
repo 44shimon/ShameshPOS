@@ -20,6 +20,12 @@ public class SaleItem
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
 
-    /// <summary>Quantity × unit price, tax exclusive.</summary>
+    /// <summary>Discount given on this line itself, before tax.</summary>
+    public decimal Discount { get; set; }
+
+    /// <summary>This line's share of a discount on the whole sale, before tax.</summary>
+    public decimal SaleDiscountShare { get; set; }
+
+    /// <summary>Quantity × unit price less <see cref="Discount"/> and <see cref="SaleDiscountShare"/>, tax exclusive. Tax is charged on this.</summary>
     public decimal LineTotal { get; set; }
 }

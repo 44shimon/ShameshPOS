@@ -42,6 +42,18 @@
             <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
                 <views:ReportsView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:HeldSalesViewModel}">
+                <views:HeldSalesView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ReturnsViewModel}">
+                <views:ReturnsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:DiscountViewModel}">
+                <views:DiscountView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ShiftViewModel}">
+                <views:ShiftView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:DialogViewModel}">
                 <views:DialogView />
             </DataTemplate>

@@ -10,7 +10,7 @@ public class Payment
     public int PaymentMethodId { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
 
-    /// <summary>Amount applied to the sale.</summary>
+    /// <summary>Amount applied to the sale. A sale paid in parts (e.g. cash and card) has one payment per part.</summary>
     public decimal Amount { get; set; }
 
     /// <summary>Cash handed over by the customer. Only set for cash payments.</summary>
