@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Shmesh POS"
+        Icon="/Resources/ShmeshPOS.ico"
         Width="1366" Height="800" MinWidth="1024" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource AppBackgroundBrush}"

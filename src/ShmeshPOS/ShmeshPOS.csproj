@@ -13,6 +13,7 @@
     <Version>0.1.0</Version>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <UserSecretsId>shmesh-pos-dev</UserSecretsId>
+    <ApplicationIcon>Resources\ShmeshPOS.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +33,11 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="System.Text.Json" Version="9.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Window and taskbar icon (the exe's own icon comes from ApplicationIcon). -->
+    <Resource Include="Resources\ShmeshPOS.ico" />
   </ItemGroup>
 
   <ItemGroup>
