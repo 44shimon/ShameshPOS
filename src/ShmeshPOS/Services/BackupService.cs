@@ -211,6 +211,15 @@ public class DailyBackupScheduler(BackupService backups, IOptions<BackupOptions>
             return;
         }
 
+        // Registers normally have no PostgreSQL tools; backups are made on the machine that does (usually the
+        // server). Say so once instead of logging a failure every hour.
+        if (backups.FindPgDump() is null)
+        {
+            logger.LogWarning("Automatic backups are off on this machine: pg_dump.exe was not found. Install the PostgreSQL " +
+                              "command-line tools or set Backup:PgDumpPath to back up from here, or set Backup:Enabled to false");
+            return;
+        }
+
         // Let the register start up (and apply migrations) before the first check.
         await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
         using var timer = new PeriodicTimer(TimeSpan.FromHours(1));

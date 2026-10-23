@@ -11,7 +11,7 @@
     "SampleData": false
   },
   "Backup": {
-    "Enabled": true,
+    "Enabled": false,
     "Folder": "",
     "KeepDays": 30,
     "PgDumpPath": ""

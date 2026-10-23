@@ -18,7 +18,8 @@ src/ShmeshPOS/
   Resources/Styles/  Colors and control styles
   Infrastructure/    Options, keyboard routing
 tests/ShmeshPOS.Tests/  Unit tests + PostgreSQL integration tests
-scripts/            Database setup SQL
+scripts/            Database setup SQL, publish and installer build scripts, icon generator
+installer/          Inno Setup script for ShmeshPOS-Setup-<version>.exe
 ```
 
 ## First-time setup (development)
@@ -55,13 +56,15 @@ Alternatively omit `Password` from the connection string and use a PostgreSQL
 | Key | Default | Meaning |
 |---|---|---|
 | `ConnectionStrings:ShmeshPos` | localhost / shmesh_pos | PostgreSQL connection |
+| `Pos:StoreName` | `Shmesh POS` | Shown on the login and sale screens and printed on reports |
 | `Pos:TerminalName` | machine name | Stored on each sale |
-| `Pos:FullScreen` | `true` | Borderless kiosk window; Alt+F4 blocked. Admin exits via F3 → Exit |
+| `Pos:FullScreen` | `false` | `true`: borderless kiosk window, Alt+F4 blocked, admin exits via F3 → Exit. `false`: normal window |
 | `Pos:Culture` | `en-US` | Currency formatting |
 | `Pos:MaxFailedLoginAttempts` / `LoginLockoutSeconds` | 5 / 30 | PIN brute-force throttle |
 | `Database:AutoMigrate` | `true` | Apply migrations at start-up |
 | `Seed:AdminPin` | *(empty)* | PIN of the first administrator, used only while the users table is empty |
-| `Seed:SampleData` | `true` | Sample categories/products when the catalog is empty |
+| `Seed:SampleData` | `false` | Sample categories/products when the catalog is empty (for demos and testing) |
+| `Backup:Enabled` | `true` | Daily `pg_dump` backup from this computer; skipped with one warning if `pg_dump.exe` isn't installed |
 
 Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs are never logged.
 
@@ -161,9 +164,10 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
   `%ProgramData%\ShmeshPOS\backups\shmesh_pos_YYYYMMDD_HHMMSS.backup`, and deletes backups older than 30 days.
   Administration → Settings shows the last backup and has **Back Up Now**.
 - `pg_dump.exe` is found automatically under `C:\Program Files\PostgreSQL\<version>\bin`; install the
-  PostgreSQL command-line tools on the computer that should make backups (normally the server), and set
-  `"Backup": { "Enabled": false }` on registers that shouldn't. Settings: `Backup:Folder`, `Backup:KeepDays`,
-  `Backup:PgDumpPath`.
+  PostgreSQL command-line tools on the computer that should make backups (normally the server). A computer
+  without them logs one warning at start-up and makes no automatic backups. The installer turns the daily backup
+  on only when the database is on the same computer; elsewhere set `"Backup": { "Enabled": true }` yourself.
+  Settings: `Backup:Enabled`, `Backup:Folder`, `Backup:KeepDays`, `Backup:PgDumpPath`.
 - **Copy backups off the machine** (USB drive, another PC, cloud folder); a backup on the same disk doesn't
   survive a disk failure.
 - **Restore** (administrator, with every register closed):
@@ -179,19 +183,35 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
 
 1. **Server (once):** install PostgreSQL, run `scripts/create-database.sql` with a strong password, and allow
    the registers' IP addresses in `pg_hba.conf` (local network only).
-2. **Build:** on the development PC run `.\scripts\publish.ps1`. It runs the tests and creates
-   `publish\ShmeshPOS\` with a self-contained `ShmeshPOS.exe` (no .NET install needed on the register).
-3. **Copy** that folder to the register, e.g. `C:\Program Files\ShmeshPOS`.
-4. **Configure:** copy `register-appsettings.example.json` to `%ProgramData%\ShmeshPOS\appsettings.json`
-   and set the server name, password, and `TerminalName` (e.g. `REGISTER-1`). For the first register only,
-   set `Seed:AdminPin` to create the first administrator. Set `Pos:FullScreen` to `true` for kiosk mode.
-   Restrict the file so only administrators and the POS Windows account can read it (it holds the password).
-5. **Start:** create a desktop shortcut to `ShmeshPOS.exe` (add it to `shell:startup` to open at logon).
-   The first start creates the tables. Then add real users, products and customers in Administration
-   (or import them), untick the sample products, and choose the 10 main-screen items.
-6. **Printer:** install the receipt printer's Windows driver, then pick it in Administration → Settings.
+2. **Build the installer** on the development PC: `.\scripts\build-installer.ps1`. It runs the tests, publishes a
+   self-contained app (no .NET install needed on the register) and creates
+   `publish\installer\ShmeshPOS-Setup-<version>.exe`. It needs Inno Setup 6:
+   `winget install --id JRSoftware.InnoSetup -e --source winget --scope user`.
+3. **Run the installer** on each register (it asks for administrator rights). It asks for:
+   - the **database** server, port, name, user and password;
+   - the **register name** (printed on receipts, e.g. `REGISTER-1`) and the store name;
+   - **first register only:** a 4–8 digit PIN for the first administrator (leave blank on the others);
+   - **full screen** (kiosk mode); for demo/training databases only, **sample products**; and whether this computer
+     makes the **daily backup** (ticked automatically when the database server is this computer);
+   - the **Windows account** that runs the POS. The settings file holds the database password, so only that
+     account, administrators and SYSTEM can read it. Enter `Users` to allow every local user.
 
-Updating: publish again and replace the folder; database changes are applied automatically at start-up.
+   It installs to `C:\Program Files\ShmeshPOS`, adds Start menu (and optionally desktop and start-at-logon)
+   shortcuts, and writes `%ProgramData%\ShmeshPOS\appsettings.json`.
+4. **Start** Shmesh POS. The first start creates the tables. Log in with the PIN from step 3, change it in
+   Administration → Users, add real users, products and customers (or import them), and choose the 10
+   main-screen items.
+5. **Printer:** install the receipt printer's Windows driver, then pick it in Administration → Settings.
+
+**Updating:** run the new installer. It closes Shmesh POS, keeps the register's settings (unless you tick
+"Change settings"), and database changes are applied automatically at the next start.
+
+**Uninstalling** (Settings → Apps) removes the program but keeps `%ProgramData%\ShmeshPOS` (settings, logs and
+backups). The database on the server is never touched.
+
+**Without the installer:** `.\scripts\publish.ps1` creates `publish\ShmeshPOS\`; copy it to the register, copy
+`register-appsettings.example.json` to `%ProgramData%\ShmeshPOS\appsettings.json`, fill it in and restrict its
+permissions by hand.
 
 ## Customer accounts
 

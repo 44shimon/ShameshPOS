@@ -724,12 +724,6 @@ public partial class PosViewModel : ObservableObject, IKeyboardHandler, IDisposa
         }
     }
 
-    private async Task ComingSoonAsync(string feature)
-    {
-        await _dialogs.ShowMessageAsync(feature, $"{feature} is not available yet.");
-        FocusSearch();
-    }
-
     private async Task LogoutAsync()
     {
         if (!Cart.IsEmpty &&

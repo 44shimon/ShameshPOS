@@ -43,6 +43,6 @@ public class SeedOptions
     /// <summary>PIN for the initial administrator, used only when the users table is empty.</summary>
     public string AdminPin { get; set; } = "";
 
-    /// <summary>Create sample canteen categories and products when the catalog is empty.</summary>
-    public bool SampleData { get; set; } = true;
+    /// <summary>Create sample canteen categories and products when the catalog is empty. Off by default so a real install starts clean.</summary>
+    public bool SampleData { get; set; }
 }

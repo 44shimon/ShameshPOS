@@ -8,16 +8,19 @@
 #>
 param(
     [string]$Output = (Join-Path $PSScriptRoot "..\publish\ShmeshPOS"),
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $project = Join-Path $root "src\ShmeshPOS\ShmeshPOS.csproj"
 
-Write-Host "Running tests..." -ForegroundColor Cyan
-dotnet test (Join-Path $root "ShmeshPOS.sln") --configuration $Configuration
-if ($LASTEXITCODE -ne 0) { throw "Tests failed; nothing was published." }
+if (-not $SkipTests) {
+    Write-Host "Running tests..." -ForegroundColor Cyan
+    dotnet test (Join-Path $root "ShmeshPOS.sln") --configuration $Configuration
+    if ($LASTEXITCODE -ne 0) { throw "Tests failed; nothing was published." }
+}
 
 if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
 
