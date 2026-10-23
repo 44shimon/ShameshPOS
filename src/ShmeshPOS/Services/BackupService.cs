@@ -175,11 +175,17 @@ public class BackupService(
         }
     }
 
-    /// <summary>Configured path, else the newest PostgreSQL install's pg_dump, else pg_dump on PATH.</summary>
+    /// <summary>
+    /// Configured path, else the PostgreSQL bundled by the installer (database server computers), else the newest
+    /// PostgreSQL install's pg_dump, else pg_dump on PATH.
+    /// </summary>
     public string? FindPgDump()
     {
         if (!string.IsNullOrWhiteSpace(options.Value.PgDumpPath))
             return File.Exists(options.Value.PgDumpPath) ? options.Value.PgDumpPath : null;
+
+        var bundled = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_dump.exe");
+        if (File.Exists(bundled)) return bundled;
 
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PostgreSQL");
         if (Directory.Exists(root))

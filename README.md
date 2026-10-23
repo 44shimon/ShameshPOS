@@ -173,6 +173,8 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
 - **Restore** (administrator, with every register closed):
 
   ```powershell
+  # Installer's database server: the tools are in C:\Program Files\ShmeshPOS\pgsql\bin, and the port and
+  # superuser password are in C:\ProgramData\ShmeshPOS\database-admin.txt (add -p <port> if it isn't 5432).
   # into a new database first, to check it:
   & "C:\Program Files\PostgreSQL\18\bin\createdb.exe" -U postgres -O shmesh_pos shmesh_pos_restored
   & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" -U postgres -d shmesh_pos_restored --no-owner --role=shmesh_pos "C:\ProgramData\ShmeshPOS\backups\shmesh_pos_20260925_055959.backup"
@@ -181,33 +183,49 @@ Logs: `%ProgramData%\ShmeshPOS\logs\shmeshpos-YYYYMMDD.log` (60 days kept). PINs
 
 ## Installing on a register
 
-1. **Server (once):** install PostgreSQL, run `scripts/create-database.sql` with a strong password, and allow
-   the registers' IP addresses in `pg_hba.conf` (local network only).
-2. **Build the installer** on the development PC: `.\scripts\build-installer.ps1`. It runs the tests, publishes a
-   self-contained app (no .NET install needed on the register) and creates
-   `publish\installer\ShmeshPOS-Setup-<version>.exe`. It needs Inno Setup 6:
+The installer contains everything a clean Windows 10/11 (64-bit) computer needs: the self-contained app (no .NET
+install), and for the database server PostgreSQL 18 and the Microsoft Visual C++ runtime.
+
+1. **Build the installer** on the development PC: `.\scripts\build-installer.ps1`. It runs the tests, publishes the
+   app, downloads PostgreSQL and the Visual C++ runtime once into `publish\deps` (checked against pinned SHA-256
+   hashes) and creates `publish\installer\ShmeshPOS-Setup-<version>.exe`. It needs Inno Setup 6:
    `winget install --id JRSoftware.InnoSetup -e --source winget --scope user`.
-3. **Run the installer** on each register (it asks for administrator rights). It asks for:
-   - the **database** server, port, name, user and password;
+2. **Database server first** (the only computer for a single register, or the main computer): run the installer
+   as an administrator and choose **Database server**. It installs PostgreSQL as the Windows service
+   `ShmeshPOS-Database` (data in `%ProgramData%\ShmeshPOS\pgdata`, port 5432 or the next free one), creates the
+   database and its login with random passwords, and connects Shmesh POS to it. Tick **Let other registers on the
+   store network connect** if there will be more registers: it opens the port in Windows Firewall (private and
+   domain networks only) and allows logins from the local subnet. The server name, port and passwords are saved in
+   `%ProgramData%\ShmeshPOS\database-admin.txt`, which only administrators can open.
+3. **Other registers:** run the installer and choose **Register only**, then enter the server name, port and
+   register password from `database-admin.txt`.
+
+   On both, the installer also asks for:
    - the **register name** (printed on receipts, e.g. `REGISTER-1`) and the store name;
-   - **first register only:** a 4–8 digit PIN for the first administrator (leave blank on the others);
+   - **new database only:** a 4–8 digit PIN for the first administrator (leave blank on the other registers);
    - **full screen** (kiosk mode); for demo/training databases only, **sample products**; and whether this computer
-     makes the **daily backup** (ticked automatically when the database server is this computer);
+     makes the **daily backup** (ticked on the database server, which has `pg_dump`);
    - the **Windows account** that runs the POS. The settings file holds the database password, so only that
      account, administrators and SYSTEM can read it. Enter `Users` to allow every local user.
 
    It installs to `C:\Program Files\ShmeshPOS`, adds Start menu (and optionally desktop and start-at-logon)
-   shortcuts, and writes `%ProgramData%\ShmeshPOS\appsettings.json`.
-4. **Start** Shmesh POS. The first start creates the tables. Log in with the PIN from step 3, change it in
+   shortcuts, and writes `%ProgramData%\ShmeshPOS\appsettings.json`. Database setup is logged to
+   `%ProgramData%\ShmeshPOS\logs\setup-database.log`.
+4. **Start** Shmesh POS. The first start creates the tables. Log in with the PIN from the installer, change it in
    Administration → Users, add real users, products and customers (or import them), and choose the 10
    main-screen items.
 5. **Printer:** install the receipt printer's Windows driver, then pick it in Administration → Settings.
 
-**Updating:** run the new installer. It closes Shmesh POS, keeps the register's settings (unless you tick
-"Change settings"), and database changes are applied automatically at the next start.
+**Updating:** run the new installer. It closes Shmesh POS, stops and updates the database service, keeps the
+settings and the database (unless you tick "Change settings"; even then the database and its password are kept),
+and database changes are applied automatically at the next start.
 
-**Uninstalling** (Settings → Apps) removes the program but keeps `%ProgramData%\ShmeshPOS` (settings, logs and
-backups). The database on the server is never touched.
+**Uninstalling** (Settings → Apps) removes the program and the `ShmeshPOS-Database` service but keeps
+`%ProgramData%\ShmeshPOS` (settings, logs, backups and the database itself). Installing again as Database server
+reuses that database.
+
+**Using your own PostgreSQL server** instead: install PostgreSQL, run `scripts/create-database.sql` with a strong
+password, allow the registers in `pg_hba.conf`, and install every computer as **Register only**.
 
 **Without the installer:** `.\scripts\publish.ps1` creates `publish\ShmeshPOS\`; copy it to the register, copy
 `register-appsettings.example.json` to `%ProgramData%\ShmeshPOS\appsettings.json`, fill it in and restrict its
