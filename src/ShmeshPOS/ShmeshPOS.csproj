@@ -10,7 +10,7 @@
     <RootNamespace>ShmeshPOS</RootNamespace>
     <Product>Shmesh POS</Product>
     <AssemblyTitle>Shmesh POS</AssemblyTitle>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <UserSecretsId>shmesh-pos-dev</UserSecretsId>
     <ApplicationIcon>Resources\ShmeshPOS.ico</ApplicationIcon>
