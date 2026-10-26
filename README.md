@@ -190,6 +190,9 @@ install), and for the database server PostgreSQL 18 and the Microsoft Visual C++
    app, downloads PostgreSQL and the Visual C++ runtime once into `publish\deps` (checked against pinned SHA-256
    hashes) and creates `publish\installer\ShmeshPOS-Setup-<version>.exe`. It needs Inno Setup 6:
    `winget install --id JRSoftware.InnoSetup -e --source winget --scope user`.
+   To try it on a clean Windows first, run `.\scripts\test-in-sandbox.ps1`: it opens Windows Sandbox with the
+   installer on its desktop (turn Sandbox on once as administrator with
+   `Enable-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -All`, then restart).
 2. **Database server first** (the only computer for a single register, or the main computer): run the installer
    as an administrator and choose **Database server**. It installs PostgreSQL as the Windows service
    `ShmeshPOS-Database` (data in `%ProgramData%\ShmeshPOS\pgdata`, port 5432 or the next free one), creates the
